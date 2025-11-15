@@ -406,7 +406,7 @@ function startVerificationSession() {
 
             showToast(`Verification started for ${data.exam_code}`, 'success');
 
-            statsUpdateInterval = setInterval(refreshStats, 5000);
+            statsUpdateInterval = setInterval(refreshStats, 15000);
         } else {
             showToast('Failed to start session', 'danger');
         }

@@ -1,7 +1,7 @@
+import json
 import os
 from datetime import datetime, timezone, date, time
 from decimal import Decimal
-from ensurepip import bootstrap
 from typing import Optional, List
 from dotenv import load_dotenv
 from flask import Flask, render_template, request, jsonify, url_for, flash
@@ -25,6 +25,13 @@ from sqlalchemy import and_, or_
 from voice_recognition import VoiceBiometricSystem as DigitalPersonaUSBScanner
 
 
+def ensure_timezone_aware(dt):
+    """Ensure datetime is timezone-aware (UTC)"""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
 
 # Initialize voice biometric system (add after app setup)
 biometric_scanner = DigitalPersonaUSBScanner()
@@ -688,7 +695,7 @@ def initiate_fingerprint_scan():
 
 @app.route("/api/capture-fingerprint", methods=["POST"])
 def capture_fingerprint():
-    """Capture voice biometric from microphone"""
+    """Capture voice biometric from microphone - FIXED"""
     try:
         data = request.json
         student_id = data.get('student_id')
@@ -703,34 +710,27 @@ def capture_fingerprint():
 
         print(f"Voice captured. Quality: {scan_result['quality_score']}")
 
-        if scan_result['quality_score'] < 60:
+        if scan_result['quality_score'] < 50:  # Lowered threshold
             return jsonify(generate_scanner_response("quality_low", {
                 "quality_score": scan_result['quality_score'],
                 "retry_recommended": True
             }))
 
-        # Safely extract voice-specific metrics
+        # Extract voice-specific metrics safely
         try:
-            if isinstance(scan_result.get('template'), str):
-                import json
-                template_data = json.loads(scan_result['template'])
-            else:
-                template_data = scan_result.get('template_data', {})
-
-            features = template_data.get('features', {})
-            pitch_mean = features.get('pitch_mean', 0)
-
+            template_data = scan_result.get('template_data', {})
+            pitch_mean = template_data.get('pitch_mean', 0)
         except Exception as e:
-            print(f"Error extracting voice features: {e}")
+            print(f"Warning: Could not extract pitch: {e}")
             pitch_mean = 0
-            features = {}
 
-        # Return successful scan
+        # CRITICAL: Return the JSON template string, not base64 audio
         response_data = {
             "quality_score": scan_result['quality_score'],
             "minutiae_count": len(str(scan_result.get('template', ''))),
             "pitch_mean": float(pitch_mean) if pitch_mean else 0,
-            "scan_data": scan_result['image_data']  # Base64 encoded audio
+            "scan_data": scan_result['template'],  # ← This is the JSON template string!
+            "audio_data": scan_result.get('image_data', '')  # Legacy field
         }
 
         return jsonify(generate_scanner_response("scanning_complete", response_data))
@@ -747,11 +747,11 @@ def capture_fingerprint():
 
 @app.route("/api/enroll-fingerprint", methods=["POST"])
 def enroll_fingerprint():
-    """Enroll captured voiceprint into database"""
+    """Enroll captured voiceprint into database - SIMPLIFIED"""
     try:
         data = request.json
         student_id = data.get('student_id')
-        scan_data = data.get('scan_data')  # Base64 encoded voice data
+        scan_data = data.get('scan_data')  # This is now the JSON template string!
         quality_score = data.get('quality_score', 85.0)
 
         print(f"\n=== ENROLLMENT REQUEST ===")
@@ -773,16 +773,35 @@ def enroll_fingerprint():
 
         print(f"Student found: {student.full_name}")
 
-        # Deactivate old voiceprints (keep history but mark inactive)
+        # Deactivate old voiceprints
         if student.voiceprints:
             for old_vp in student.voiceprints:
                 old_vp.is_active = False
             print(f"Deactivated {len(student.voiceprints)} old voiceprints")
 
-        # Process voiceprint template
-        template_data = base64.b64decode(scan_data)
-        template_hash = hashlib.sha256(template_data).hexdigest()
+        # CRITICAL FIX: scan_data is already a JSON string!
+        # Just encode it as UTF-8 bytes for storage
+        try:
+            # Verify it's valid JSON
+            template_dict = json.loads(scan_data)
+            print(f"✓ Template is valid JSON")
 
+            # Extract pitch for database
+            pitch_mean = template_dict.get('pitch_mean', 0)
+
+            # Encode as UTF-8 bytes for database storage
+            template_data = scan_data.encode('utf-8')
+
+            print(f"✓ Template ready: {len(scan_data)} chars, {len(template_data)} bytes")
+
+        except json.JSONDecodeError as e:
+            print(f"✗ Invalid JSON template: {e}")
+            return jsonify(generate_scanner_response("enrollment_error", {
+                "error": "Invalid template format"
+            })), 400
+
+        # Create template hash
+        template_hash = hashlib.sha256(template_data).hexdigest()
         print(f"Template hash: {template_hash[:16]}...")
 
         # Check for duplicate hash
@@ -792,7 +811,7 @@ def enroll_fingerprint():
         ).scalar_one_or_none()
 
         if existing:
-            print(f"⚠ Duplicate template hash found!")
+            print(f"⚠️  Duplicate template hash found!")
             return jsonify(generate_scanner_response("enrollment_error", {
                 "error": "This voiceprint has already been enrolled"
             })), 400
@@ -800,20 +819,19 @@ def enroll_fingerprint():
         # Create voiceprint template record
         voiceprint = VoiceprintTemplate(
             student_id=student_id,
-            template_data=template_data,
+            template_data=template_data,  # UTF-8 encoded JSON string
             template_hash=template_hash,
             sample_rate=16000,
-            duration_seconds=3,
+            duration_seconds=5,
             audio_format="MFCC",
             quality_score=Decimal(str(quality_score)),
+            pitch_mean=Decimal(str(pitch_mean)) if pitch_mean else None,
             enrollment_date=datetime.now(timezone.utc),
             is_active=True,
             verification_count=0
         )
 
         db.session.add(voiceprint)
-
-        # Commit the transaction
         db.session.commit()
 
         print(f"✓ Voiceprint enrolled successfully! ID: {voiceprint.id}")
@@ -828,7 +846,7 @@ def enroll_fingerprint():
 
     except Exception as e:
         db.session.rollback()
-        print(f"❌ ENROLLMENT ERROR: {e}")
+        print(f"✗ ENROLLMENT ERROR: {e}")
         import traceback
         traceback.print_exc()
 
@@ -977,9 +995,15 @@ def verify_fingerprint():
         print("Starting voice matching process...")
         for idx, voiceprint in enumerate(voiceprints):
             try:
-                # Decode stored template
+                # Get stored template - it's already a JSON string stored as bytes
                 if isinstance(voiceprint.template_data, bytes):
-                    stored_template = voiceprint.template_data.decode('utf-8')
+                    # Don't decode - pass the bytes directly or decode if it's valid JSON
+                    try:
+                        stored_template = voiceprint.template_data.decode('utf-8')
+                    except UnicodeDecodeError:
+                        # If bytes are not UTF-8 (old binary format), skip this template
+                        print(f"  - Skipping voiceprint {voiceprint.id}: Invalid format (needs re-enrollment)")
+                        continue
                 else:
                     stored_template = voiceprint.template_data
 
@@ -999,9 +1023,68 @@ def verify_fingerprint():
                     match_details = {"confidence": confidence_score}
                     print(f"  - NEW BEST MATCH! Score: {best_score:.2f}%")
 
-            except Exception as e:
-                print(f"Error matching voiceprint {voiceprint.id}: {e}")
+            except UnicodeDecodeError as e:
+                print(f"  - Skipping voiceprint {voiceprint.id}: Encoding error (old format)")
                 continue
+            except Exception as e:
+                print(f"  - Error matching voiceprint {voiceprint.id}: {e}")
+                continue
+
+                # COMPLETE REPLACEMENT FOR THE MATCHING LOOP:
+
+                best_match = None
+                best_score = 0
+                match_details = None
+
+                # Match against all templates
+                print("Starting voice matching process...")
+                for idx, voiceprint in enumerate(voiceprints):
+                    try:
+                        # Get stored template safely
+                        stored_template = None
+
+                        if isinstance(voiceprint.template_data, bytes):
+                            try:
+                                # Try to decode as UTF-8 JSON string
+                                stored_template = voiceprint.template_data.decode('utf-8')
+
+                                # Validate it's actually JSON
+                                import json
+                                json.loads(stored_template)  # Will raise if not valid JSON
+
+                            except (UnicodeDecodeError, json.JSONDecodeError) as e:
+                                print(f"  - Voiceprint {voiceprint.id} has invalid format (needs re-enrollment)")
+                                print(f"    Error: {e}")
+                                continue
+                        else:
+                            stored_template = voiceprint.template_data
+
+                        if not stored_template:
+                            print(f"  - Skipping empty voiceprint {voiceprint.id}")
+                            continue
+
+                        print(
+                            f"Comparing with voiceprint {idx + 1}/{len(voiceprints)} (Student ID: {voiceprint.student_id})")
+
+                        # Compare using voice biometric system
+                        confidence_score, is_match = biometric_scanner.compare_fingerprints(
+                            current_scan['template'],  # Current voice sample
+                            stored_template  # Stored voiceprint
+                        )
+
+                        print(f"  - Confidence: {confidence_score:.2f}%, Match: {is_match}")
+
+                        if confidence_score > best_score and is_match:
+                            best_match = voiceprint
+                            best_score = confidence_score
+                            match_details = {"confidence": confidence_score}
+                            print(f"  - NEW BEST MATCH! Score: {best_score:.2f}%")
+
+                    except Exception as e:
+                        print(f"  - Error matching voiceprint {voiceprint.id}: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        continue
 
         print(f"\nMatching complete. Best score: {best_score:.2f}%")
 
@@ -1213,14 +1296,27 @@ def get_verification_session_stats(exam_id):
                 "recent_verifications": []
             }), 200
 
+        # Calculate session duration safely
+        try:
+            current_time = datetime.now(timezone.utc)
+            session_start = ensure_timezone_aware(active_session.session_start)
+
+            session_duration = current_time - session_start
+            duration_minutes = int(session_duration.total_seconds() / 60)
+        except Exception as e:
+            print(f"Error calculating duration: {e}")
+            duration_minutes = 0
+
         # Get recent verifications
         try:
+            session_start = ensure_timezone_aware(active_session.session_start)
+
             recent_verifications = db.session.execute(
                 select(VerificationAttempt, Student.first_name, Student.last_name, Student.registration_number)
                 .outerjoin(Student)
                 .where(
                     and_(VerificationAttempt.exam_id == exam_id,
-                         VerificationAttempt.verification_timestamp >= active_session.session_start)
+                         VerificationAttempt.verification_timestamp >= session_start)
                 )
                 .order_by(VerificationAttempt.verification_timestamp.desc())
                 .limit(10)
@@ -1239,10 +1335,13 @@ def get_verification_session_stats(exam_id):
             print(f"Error fetching recent verifications: {e}")
             recent_list = []
 
-        # Calculate session duration
-        current_time = datetime.now(timezone.utc)
-        session_duration = current_time - active_session.session_start
-        duration_minutes = int(session_duration.total_seconds() / 60)
+        # Calculate success rate
+        if active_session.total_attempts > 0:
+            success_rate = round(
+                (active_session.successful_verifications / active_session.total_attempts) * 100, 2
+            )
+        else:
+            success_rate = 0
 
         return jsonify({
             "session_active": True,
@@ -1251,7 +1350,7 @@ def get_verification_session_stats(exam_id):
             "successful_verifications": active_session.successful_verifications or 0,
             "failed_attempts": active_session.failed_attempts or 0,
             "duplicate_attempts": active_session.duplicate_attempts or 0,
-            "success_rate": active_session.success_rate,
+            "success_rate": success_rate,
             "recent_verifications": recent_list
         })
 

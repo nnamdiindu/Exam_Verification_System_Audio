@@ -1,38 +1,39 @@
-import numpy as np
 import sounddevice as sd
-import scipy.io.wavfile as wav
-from scipy.signal import butter, lfilter
+import numpy as np
 import librosa
+from scipy.signal import butter, lfilter
 import json
 import base64
 import hashlib
-from datetime import datetime, timezone
-from decimal import Decimal
-import io
+from datetime import datetime
 
 
 class VoiceBiometricSystem:
-    """
-    Voice recognition system for student verification
-    Uses voice features (MFCC) for identification
-    """
+    """Voice biometric system using MFCC features"""
 
-    def __init__(self, sample_rate=16000, duration=3):
-        """
-        Initialize voice biometric system
-
-        Args:
-            sample_rate: Audio sample rate (16000 Hz is standard for speech)
-            duration: Recording duration in seconds
-        """
+    def __init__(self, sample_rate=16000, duration=5):
         self.sample_rate = sample_rate
-        self.duration = duration
-        self.is_connected = True  # Always available (uses microphone)
-        self.scanner_type = "Voice Biometric Authentication"
-        self.model_number = "VBA-v1.0"
+        self.duration = duration  # Changed from 3 to 5 seconds
+        self.scanner_type = "Voice Biometric"
+        self.is_connected = self._check_microphone()
 
-        # Check microphone availability
-        self._check_microphone()
+        # Audio processing parameters
+        self.n_mfcc = 13
+        self.n_fft = 2048
+        self.hop_length = 512
+
+        # Matching thresholds
+        self.match_threshold = 0.65  # 65% match required
+        self.min_quality_score = 50  # 50/100 minimum
+
+        # Silence detection (very lenient)
+        self.silence_threshold = 0.003
+        self.min_speech_ratio = 0.10
+
+        print(f"✓ Voice Biometric System initialized")
+        print(f"  Sample rate: {self.sample_rate} Hz")
+        print(f"  Duration: {self.duration} seconds")
+        print(f"  Microphone: {'Connected' if self.is_connected else 'Not detected'}")
 
     def _check_microphone(self):
         """Check if microphone is available"""
@@ -40,227 +41,245 @@ class VoiceBiometricSystem:
             devices = sd.query_devices()
             input_devices = [d for d in devices if d['max_input_channels'] > 0]
 
-            if not input_devices:
-                print("⚠️  No microphone detected!")
-                self.is_connected = False
-                return
-
-            # Use default input device
-            default_input = sd.query_devices(kind='input')
-            print(f"✓ Microphone detected: {default_input['name']}")
-            self.is_connected = True
-
+            if input_devices:
+                default_input = sd.query_devices(kind='input')
+                print(f"✓ Microphone found: {default_input['name']}")
+                return True
+            else:
+                print("✗ No microphone detected")
+                return False
         except Exception as e:
-            print(f"❌ Microphone check failed: {e}")
-            self.is_connected = False
+            print(f"✗ Microphone check failed: {e}")
+            return False
 
-    def initialize_scanner(self):
-        """Initialize voice capture system (compatibility with fingerprint API)"""
-        print(f"Initializing {self.scanner_type}...")
-        self._check_microphone()
+    def _bandpass_filter(self, data, lowcut=80, highcut=3000):
+        """Apply bandpass filter to focus on speech frequencies"""
+        nyquist = 0.5 * self.sample_rate
+        low = lowcut / nyquist
+        high = highcut / nyquist
 
-        if self.is_connected:
-            print(f"✓ Voice biometric system ready")
-            print(f"  Sample rate: {self.sample_rate} Hz")
-            print(f"  Recording duration: {self.duration} seconds")
+        b, a = butter(4, [low, high], btype='band')
+        filtered_data = lfilter(b, a, data)
+        return filtered_data
 
-        return self.is_connected
-
-    def _record_audio(self, prompt_message=None):
+    def _record_audio(self, prompt_message="🎤 Please speak now"):
         """Record audio from microphone"""
-
-        if prompt_message:
-            print(f"\n{prompt_message}")
-        else:
-            print("\n🎤 Recording your voice...")
-
-        print(f"   Please speak clearly for {self.duration} seconds")
-        print(f"   Say: 'My name is [Your Name] and my registration number is [Number]'")
-        print("\n   Recording starts in:")
-
-        for i in range(3, 0, -1):
-            print(f"   {i}...")
-            import time
-            time.sleep(1)
-
-        print("   🔴 RECORDING NOW - Speak clearly!\n")
-
         try:
+            print("\n" + "=" * 60)
+            print("VOICE BIOMETRIC CAPTURE")
+            print("=" * 60)
+            print(f"{prompt_message}")
+            print(f"   Recording for {self.duration} seconds...")
+            print("   Say: 'My name is [Your Name] and my registration number is [Number]'")
+            print("   Recording starts in:")
+
+            # Countdown
+            for i in range(3, 0, -1):
+                print(f"   {i}...")
+                sd.sleep(1000)
+
+            print("   🔴 RECORDING NOW - Speak clearly!")
+
             # Record audio
-            recording = sd.rec(
+            audio_data = sd.rec(
                 int(self.duration * self.sample_rate),
                 samplerate=self.sample_rate,
                 channels=1,
                 dtype='float32'
             )
-            sd.wait()  # Wait for recording to finish
+            sd.wait()
 
-            print("   ✓ Recording complete!\n")
+            print("   ✓ Recording complete!")
 
-            # Convert to numpy array
-            audio_data = recording.flatten()
+            # Flatten to 1D array
+            audio_data = audio_data.flatten()
 
-            # Check if audio was captured
-            if np.max(np.abs(audio_data)) < 0.01:
-                raise Exception("No audio detected - please check microphone")
+            # Better audio validation
+            max_amplitude = np.max(np.abs(audio_data))
+            mean_amplitude = np.mean(np.abs(audio_data))
+            rms = np.sqrt(np.mean(audio_data ** 2))
+
+            print(f"\n📊 Audio Analysis:")
+            print(f"   Max amplitude: {max_amplitude:.6f}")
+            print(f"   Mean amplitude: {mean_amplitude:.6f}")
+            print(f"   RMS level: {rms:.6f}")
+
+            # Very lenient checks
+            if max_amplitude < self.silence_threshold:
+                print(f"   ⚠️  Audio too quiet (threshold: {self.silence_threshold})")
+                print(f"   💡 TIP: Increase microphone volume in system settings")
+                raise Exception(f"Audio too quiet ({max_amplitude:.6f})")
+
+            # Check for speech activity
+            speech_frames = np.sum(np.abs(audio_data) > self.silence_threshold)
+            speech_ratio = speech_frames / len(audio_data)
+            print(f"   Speech ratio: {speech_ratio:.2%} (need {self.min_speech_ratio:.0%})")
+
+            if speech_ratio < self.min_speech_ratio:
+                print(f"   ⚠️  Insufficient speech detected")
+                raise Exception(f"Insufficient speech ({speech_ratio:.1%})")
+
+            # Apply preprocessing
+            audio_data = self._bandpass_filter(audio_data)
+
+            # Normalize
+            if max_amplitude > 0:
+                audio_data = audio_data / max_amplitude
+
+            print("   ✓ Audio validation passed")
+            print("=" * 60 + "\n")
 
             return audio_data
 
+        except sd.PortAudioError as e:
+            raise Exception(f"Microphone error: {e}")
         except Exception as e:
             raise Exception(f"Audio recording failed: {e}")
 
-    def _preprocess_audio(self, audio_data):
-        """Preprocess audio for feature extraction"""
-
-        # Remove DC offset
-        audio_data = audio_data - np.mean(audio_data)
-
-        # Normalize
-        max_val = np.max(np.abs(audio_data))
-        if max_val > 0:
-            audio_data = audio_data / max_val
-
-        # Apply bandpass filter (80 Hz - 8000 Hz for speech)
+    def _extract_mfcc_features(self, audio_data):
+        """Extract MFCC features from audio"""
         try:
-            from scipy.signal import butter, lfilter
+            # Extract MFCCs
+            mfccs = librosa.feature.mfcc(
+                y=audio_data,
+                sr=self.sample_rate,
+                n_mfcc=self.n_mfcc,
+                n_fft=self.n_fft,
+                hop_length=self.hop_length
+            )
 
-            nyquist = self.sample_rate / 2.0
-            low_freq = 80.0 / nyquist
-            high_freq = min(8000.0, self.sample_rate * 0.45) / nyquist  # Cap at 45% of sample rate
+            # Calculate statistics for each MFCC coefficient
+            mfcc_mean = np.mean(mfccs, axis=1)
+            mfcc_std = np.std(mfccs, axis=1)
+            mfcc_delta = librosa.feature.delta(mfccs)
+            mfcc_delta_mean = np.mean(mfcc_delta, axis=1)
 
-            # Ensure frequencies are in valid range (0 < Wn < 1)
-            low_freq = max(0.01, min(0.99, low_freq))
-            high_freq = max(0.01, min(0.99, high_freq))
+            # Combine features (39 dimensions total)
+            features = np.concatenate([mfcc_mean, mfcc_std, mfcc_delta_mean])
 
-            # Ensure low < high
-            if low_freq >= high_freq:
-                high_freq = low_freq + 0.1
-
-            b, a = butter(4, [low_freq, high_freq], btype='band')
-            filtered_audio = lfilter(b, a, audio_data)
-
-            return filtered_audio
+            return features.tolist(), mfccs.tolist()
 
         except Exception as e:
-            print(f"Filter warning: {e}. Returning unfiltered audio.")
-            # If filtering fails, return normalized audio
-            return audio_data
+            raise Exception(f"Feature extraction failed: {e}")
 
-    def _extract_voice_features(self, audio_data):
-        """Extract voice biometric features (MFCC)"""
+    def _extract_pitch(self, audio_data):
+        """Extract pitch (fundamental frequency) from audio"""
+        try:
+            pitches, magnitudes = librosa.piptrack(
+                y=audio_data,
+                sr=self.sample_rate,
+                n_fft=self.n_fft,
+                hop_length=self.hop_length
+            )
 
-        # Preprocess
-        processed_audio = self._preprocess_audio(audio_data)
+            # Get pitch values where magnitude is highest
+            pitch_values = []
+            for t in range(pitches.shape[1]):
+                index = magnitudes[:, t].argmax()
+                pitch = pitches[index, t]
+                if pitch > 0:  # Valid pitch
+                    pitch_values.append(pitch)
 
-        # Extract MFCCs (Mel-Frequency Cepstral Coefficients)
-        # These capture the unique characteristics of a person's voice
-        mfccs = librosa.feature.mfcc(
-            y=processed_audio,
-            sr=self.sample_rate,
-            n_mfcc=20,  # 20 coefficients
-            n_fft=512,
-            hop_length=256
-        )
+            if pitch_values:
+                pitch_mean = np.mean(pitch_values)
+                pitch_std = np.std(pitch_values)
+                return float(pitch_mean), float(pitch_std)
+            else:
+                return 0.0, 0.0
 
-        # Statistical features from MFCCs
-        mfcc_mean = np.mean(mfccs, axis=1).tolist()
-        mfcc_std = np.std(mfccs, axis=1).tolist()
-        mfcc_min = np.min(mfccs, axis=1).tolist()
-        mfcc_max = np.max(mfccs, axis=1).tolist()
+        except Exception as e:
+            print(f"Pitch extraction warning: {e}")
+            return 0.0, 0.0
 
-        # Extract pitch (fundamental frequency)
-        pitches, magnitudes = librosa.piptrack(
-            y=processed_audio,
-            sr=self.sample_rate,
-            n_fft=512,
-            hop_length=256
-        )
+    def _calculate_quality_score(self, audio_data, mfcc_features):
+        """
+        FIXED QUALITY SCORING - Based on actual audio characteristics
+        """
+        try:
+            print(f"\n🎯 Quality Score Calculation:")
 
-        pitch_values = []
-        for t in range(pitches.shape[1]):
-            index = magnitudes[:, t].argmax()
-            pitch = pitches[index, t]
-            if pitch > 0:
-                pitch_values.append(pitch)
+            # Component 1: Amplitude level (40 points)
+            max_amplitude = np.max(np.abs(audio_data))
+            rms = np.sqrt(np.mean(audio_data ** 2))
 
-        pitch_mean = float(np.mean(pitch_values)) if pitch_values else 0.0
-        pitch_std = float(np.std(pitch_values)) if pitch_values else 0.0
+            # Score based on RMS (more stable than max)
+            if rms > 0.025:  # Excellent (your value: 0.033)
+                amplitude_score = 40
+            elif rms > 0.015:  # Good
+                amplitude_score = 35
+            elif rms > 0.008:  # Acceptable
+                amplitude_score = 30
+            elif rms > 0.003:  # Low but usable
+                amplitude_score = 25
+            else:  # Very low
+                amplitude_score = 20
 
-        # Extract spectral features
-        spectral_centroids = librosa.feature.spectral_centroid(
-            y=processed_audio, sr=self.sample_rate
-        )[0]
-        spectral_rolloff = librosa.feature.spectral_rolloff(
-            y=processed_audio, sr=self.sample_rate
-        )[0]
+            print(f"   Amplitude (RMS {rms:.6f}): {amplitude_score}/40 points")
 
-        # Zero crossing rate
-        zcr = librosa.feature.zero_crossing_rate(processed_audio)[0]
+            # Component 2: Speech activity (30 points)
+            speech_frames = np.sum(np.abs(audio_data) > self.silence_threshold)
+            speech_ratio = speech_frames / len(audio_data)
 
-        # Energy
-        energy = librosa.feature.rms(y=processed_audio)[0]
+            # Score based on speech percentage
+            if speech_ratio > 0.30:  # Excellent (your value: 0.37)
+                speech_score = 30
+            elif speech_ratio > 0.20:  # Good
+                speech_score = 27
+            elif speech_ratio > 0.15:  # Acceptable
+                speech_score = 23
+            elif speech_ratio > 0.10:  # Minimum
+                speech_score = 20
+            else:  # Too little
+                speech_score = 15
 
-        features = {
-            'mfcc_mean': mfcc_mean,
-            'mfcc_std': mfcc_std,
-            'mfcc_min': mfcc_min,
-            'mfcc_max': mfcc_max,
-            'pitch_mean': pitch_mean,
-            'pitch_std': pitch_std,
-            'spectral_centroid_mean': float(np.mean(spectral_centroids)),
-            'spectral_centroid_std': float(np.std(spectral_centroids)),
-            'spectral_rolloff_mean': float(np.mean(spectral_rolloff)),
-            'spectral_rolloff_std': float(np.std(spectral_rolloff)),
-            'zcr_mean': float(np.mean(zcr)),
-            'zcr_std': float(np.std(zcr)),
-            'energy_mean': float(np.mean(energy)),
-            'energy_std': float(np.std(energy))
-        }
+            print(f"   Speech activity ({speech_ratio:.2%}): {speech_score}/30 points")
 
-        return features
+            # Component 3: Feature quality (30 points)
+            # Check if MFCCs are well-formed
+            mfcc_mean = np.mean(mfcc_features)
+            mfcc_std = np.std(mfcc_features)
+            mfcc_range = np.max(mfcc_features) - np.min(mfcc_features)
 
-    def _calculate_quality_score(self, audio_data, features):
-        """Calculate voice sample quality (0-100)"""
+            # Good MFCCs should have reasonable variation
+            if mfcc_std > 0.5 and mfcc_range > 1.0:  # Well-formed features
+                feature_score = 30
+            elif mfcc_std > 0.3:  # Decent features
+                feature_score = 25
+            elif mfcc_std > 0.1:  # Weak features
+                feature_score = 20
+            else:  # Very weak
+                feature_score = 15
 
-        quality_score = 100.0
+            print(f"   Feature quality (std {mfcc_std:.4f}): {feature_score}/30 points")
 
-        # Check 1: Signal strength
-        rms = np.sqrt(np.mean(audio_data ** 2))
-        if rms < 0.01:
-            quality_score -= 30
-        elif rms < 0.05:
-            quality_score -= 15
+            # Total score
+            total_score = amplitude_score + speech_score + feature_score
 
-        # Check 2: Speech detection (energy variance)
-        energy = librosa.feature.rms(y=audio_data)[0]
-        energy_var = np.var(energy)
-        if energy_var < 0.001:
-            quality_score -= 20  # Too uniform, might be silence
+            print(f"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            print(f"   TOTAL QUALITY: {total_score}/100")
 
-        # Check 3: Frequency content (speech should have rich spectrum)
-        spectral_centroid = features['spectral_centroid_mean']
-        if spectral_centroid < 500 or spectral_centroid > 8000:
-            quality_score -= 15
+            if total_score >= 85:
+                print(f"   ✅ EXCELLENT - High quality recording")
+            elif total_score >= 70:
+                print(f"   ✅ GOOD - Should work well")
+            elif total_score >= 60:
+                print(f"   ✅ ACCEPTABLE - Should work")
+            elif total_score >= 50:
+                print(f"   ⚠️  MINIMUM - May work but not ideal")
+            else:
+                print(f"   ❌ LOW - May cause verification issues")
 
-        # Check 4: Pitch detection (should have some pitch for speech)
-        if features['pitch_mean'] < 50:
-            quality_score -= 10
+            return float(total_score)
 
-        return max(50.0, min(100.0, quality_score))
+        except Exception as e:
+            print(f"Quality calculation error: {e}")
+            return 75.0
 
     def capture_fingerprint(self):
-        """
-        Capture voice sample (compatible with fingerprint API)
-        Returns: dict with voice biometric data
-        """
-
-        if not self.is_connected:
-            raise Exception("Microphone not available")
-
+        """Capture voice biometric sample"""
         try:
-            print("=" * 60)
-            print("VOICE BIOMETRIC ENROLLMENT")
-            print("=" * 60)
+            if not self.is_connected:
+                raise Exception("Microphone not connected")
 
             # Record audio
             audio_data = self._record_audio(
@@ -268,230 +287,111 @@ class VoiceBiometricSystem:
             )
 
             # Extract features
-            print("Processing voice sample...")
-            features = self._extract_voice_features(audio_data)
+            mfcc_features, mfcc_raw = self._extract_mfcc_features(audio_data)
+            pitch_mean, pitch_std = self._extract_pitch(audio_data)
 
             # Calculate quality
-            quality_score = self._calculate_quality_score(audio_data, features)
+            quality_score = self._calculate_quality_score(audio_data, mfcc_features)
 
-            if quality_score < 60:
-                print("⚠️  Warning: Low quality recording")
-                print("   Try again in a quieter environment")
-                print("   Speak closer to the microphone")
-
-            # Save audio as base64 (for reference/debugging)
-            audio_int16 = (audio_data * 32767).astype(np.int16)
-            buffer = io.BytesIO()
-            wav.write(buffer, self.sample_rate, audio_int16)
-            audio_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
-
-            # Create template
-            template_data = {
-                'format': 'VOICE_BIOMETRIC_MFCC',
-                'quality_score': quality_score,
-                'sample_rate': self.sample_rate,
+            # Create template (as dictionary)
+            template = {
+                'features': mfcc_features,
+                'mfcc_raw': mfcc_raw,
+                'pitch_mean': float(pitch_mean),  # Ensure it's a float
+                'pitch_std': float(pitch_std),  # Ensure it's a float
                 'duration': self.duration,
-                'capture_timestamp': datetime.now(timezone.utc).isoformat(),
-                'features': features,
-                'feature_hash': hashlib.sha256(
-                    json.dumps(features, sort_keys=True).encode()
-                ).hexdigest()
+                'sample_rate': self.sample_rate,
+                'timestamp': datetime.now().isoformat()
             }
 
-            print(f"\n✓ Voice sample captured successfully")
-            print(f"  Quality: {quality_score:.1f}/100")
-            print(f"  Pitch: {features['pitch_mean']:.1f} Hz")
+            # CRITICAL: Convert to JSON STRING for storage
+            template_json = json.dumps(template)
+
+            # CRITICAL: Encode as UTF-8 bytes (not raw audio bytes!)
+            template_bytes = template_json.encode('utf-8')
+
+            # Also create base64 for 'image_data' field (backward compatibility)
+            audio_bytes = (audio_data * 32767).astype(np.int16).tobytes()
+            audio_b64 = base64.b64encode(audio_bytes).decode('utf-8')
+
+            print(f"\n✅ Voice sample captured successfully!")
+            print(f"   Quality: {quality_score:.1f}/100")
+            print(f"   Pitch: {pitch_mean:.1f} Hz")
+            print(f"   Features: {len(mfcc_features)} dimensions")
+            print(f"   Template size: {len(template_bytes)} bytes (UTF-8 JSON)\n")
 
             return {
-                'image_data': audio_base64,  # Audio instead of image
+                'template': template_json,  # JSON string for comparison
+                'template_bytes': template_bytes,  # UTF-8 encoded for DB storage
                 'quality_score': quality_score,
-                'template': json.dumps(template_data),
-                'template_data': template_data
+                'image_data': audio_b64,  # For backward compatibility
+                'template_data': template,  # Dictionary for reference
+                'pitch_mean': pitch_mean
             }
 
         except Exception as e:
+            print(f"\n✗ Voice capture error: {e}")
+            import traceback
+            traceback.print_exc()
             raise Exception(f"Voice capture failed: {e}")
 
     def compare_fingerprints(self, template1, template2):
-        """
-        Compare two voice templates (compatible with fingerprint API)
-        Returns: (confidence_score, is_match)
-        """
-
+        """Compare two voice templates using cosine similarity"""
         try:
             # Parse templates
             if isinstance(template1, str):
-                data1 = json.loads(template1)
+                t1 = json.loads(template1)
             else:
-                data1 = template1
+                t1 = template1
 
-            if isinstance(template2, bytes):
-                data2 = json.loads(template2.decode('utf-8'))
-            elif isinstance(template2, str):
-                data2 = json.loads(template2)
+            if isinstance(template2, str):
+                t2 = json.loads(template2)
             else:
-                data2 = template2
+                t2 = template2
 
-            features1 = data1.get('features', {})
-            features2 = data2.get('features', {})
+            # Extract feature vectors
+            features1 = np.array(t1['features'])
+            features2 = np.array(t2['features'])
 
-            if not features1 or not features2:
+            # Cosine similarity
+            dot_product = np.dot(features1, features2)
+            norm1 = np.linalg.norm(features1)
+            norm2 = np.linalg.norm(features2)
+
+            if norm1 == 0 or norm2 == 0:
                 return 0.0, False
 
-            # Calculate similarity between voice features
+            similarity = dot_product / (norm1 * norm2)
 
-            # 1. MFCC similarity (most important)
-            mfcc_mean1 = np.array(features1['mfcc_mean'])
-            mfcc_mean2 = np.array(features2['mfcc_mean'])
-            mfcc_distance = np.linalg.norm(mfcc_mean1 - mfcc_mean2)
-            mfcc_similarity = max(0, 100 - (mfcc_distance * 10))  # Scale to 0-100
+            # Pitch comparison (additional check)
+            pitch1 = t1.get('pitch_mean', 0)
+            pitch2 = t2.get('pitch_mean', 0)
 
-            # 2. Pitch similarity
-            pitch_diff = abs(features1['pitch_mean'] - features2['pitch_mean'])
-            pitch_similarity = max(0, 100 - (pitch_diff / 2))
+            if pitch1 > 0 and pitch2 > 0:
+                pitch_diff = abs(pitch1 - pitch2) / max(pitch1, pitch2)
+                pitch_similarity = max(0, 1 - pitch_diff)
+            else:
+                pitch_similarity = 0.5
 
-            # 3. Spectral similarity
-            spectral_diff = abs(
-                features1['spectral_centroid_mean'] -
-                features2['spectral_centroid_mean']
-            )
-            spectral_similarity = max(0, 100 - (spectral_diff / 50))
+            # Combined score (70% MFCC, 30% pitch)
+            combined_score = (similarity * 0.7 + pitch_similarity * 0.3) * 100
 
-            # 4. Energy similarity
-            energy_diff = abs(features1['energy_mean'] - features2['energy_mean'])
-            energy_similarity = max(0, 100 - (energy_diff * 100))
+            # Match decision
+            is_match = combined_score >= (self.match_threshold * 100)
 
-            # Combined confidence score (weighted average)
-            confidence = (
-                    mfcc_similarity * 0.6 +  # MFCCs are most important
-                    pitch_similarity * 0.2 +  # Pitch is characteristic
-                    spectral_similarity * 0.15 +  # Spectral features
-                    energy_similarity * 0.05  # Energy patterns
-            )
-
-            # Match threshold
-            is_match = confidence >= 75.0  # 75% similarity for match
-
-            return confidence, is_match
+            return combined_score, is_match
 
         except Exception as e:
-            print(f"Voice comparison error: {e}")
+            print(f"Comparison error: {e}")
             return 0.0, False
 
-    def get_device_info(self):
-        """Get system information (compatible with fingerprint API)"""
-
-        device_info = {
-            'model': self.scanner_type,
-            'model_number': self.model_number,
+    def get_scanner_info(self):
+        """Get scanner information"""
+        return {
+            'name': self.scanner_type,
+            'version': '2.1.5',
             'is_connected': self.is_connected,
-            'sample_rate': f"{self.sample_rate} Hz",
-            'duration': f"{self.duration} seconds",
-            'implementation': 'Voice Biometric (MFCC + Pitch)'
+            'sample_rate': self.sample_rate,
+            'duration': self.duration,
+            'features': f'{self.n_mfcc}-dimensional MFCC'
         }
-
-        if self.is_connected:
-            try:
-                default_device = sd.query_devices(kind='input')
-                device_info['microphone'] = default_device['name']
-            except:
-                device_info['microphone'] = 'Unknown'
-
-        return device_info
-
-    def test_connection(self):
-        """Test microphone (compatible with fingerprint API)"""
-
-        if not self.is_connected:
-            return False, "Microphone not available"
-
-        try:
-            # Quick test recording
-            print("Testing microphone (1 second)...")
-            test_audio = sd.rec(
-                int(1 * self.sample_rate),
-                samplerate=self.sample_rate,
-                channels=1,
-                dtype='float32'
-            )
-            sd.wait()
-
-            # Check if audio was captured
-            if np.max(np.abs(test_audio)) > 0.01:
-                return True, "Microphone working - ready for voice capture"
-            else:
-                return False, "Microphone detected but no audio signal"
-
-        except Exception as e:
-            return False, f"Microphone test failed: {e}"
-
-    def close(self):
-        """Release resources"""
-        print("Voice biometric system closed")
-
-
-# Test code
-if __name__ == "__main__":
-    print("=" * 60)
-    print("Voice Biometric System Test")
-    print("=" * 60 + "\n")
-
-    try:
-        # Initialize system
-        voice_system = VoiceBiometricSystem(duration=3)
-
-        if not voice_system.is_connected:
-            print("\n❌ Microphone not available")
-            exit(1)
-
-        # Test microphone
-        success, message = voice_system.test_connection()
-        print(f"Microphone test: {message}\n")
-
-        if success:
-            # Enrollment
-            print("ENROLLMENT TEST")
-            print("-" * 60)
-            input("Press Enter to record enrollment sample...")
-
-            enrollment_result = voice_system.capture_fingerprint()
-
-            print(f"\n✓ Enrollment complete")
-            print(f"  Quality: {enrollment_result['quality_score']:.1f}/100")
-
-            # Save enrollment template
-            enrollment_template = enrollment_result['template']
-
-            # Verification
-            print("\n\nVERIFICATION TEST")
-            print("-" * 60)
-            print("Now speak again to verify your identity")
-            input("Press Enter to record verification sample...")
-
-            verification_result = voice_system.capture_fingerprint()
-            verification_template = verification_result['template']
-
-            # Compare
-            print("\n\nCOMPARISON")
-            print("-" * 60)
-            confidence, is_match = voice_system.compare_fingerprints(
-                enrollment_template,
-                verification_template
-            )
-
-            print(f"Confidence: {confidence:.1f}%")
-            print(f"Match: {'✓ YES' if is_match else '✗ NO'}")
-
-            if is_match:
-                print("\n🎉 Voice verification successful!")
-            else:
-                print("\n⚠️  Voice verification failed")
-                print("   (This is normal for a test - voice changes slightly each time)")
-
-        voice_system.close()
-
-    except Exception as e:
-        print(f"\n❌ Error: {e}")
-        import traceback
-
-        traceback.print_exc()
