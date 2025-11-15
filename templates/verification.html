@@ -1,0 +1,176 @@
+<!-- templates/verification.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4">Live Verification Center</h1>
+    
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>Exam Selection</h5>
+                </div>
+                <div class="card-body">
+                    <select class="form-select mb-3" id="examSelect">
+                        <option value="">Select Active Exam</option>
+                        {% for exam in active_exams %}
+                        <option value="{{ exam.id }}">{{ exam.exam_code }} - {{ exam.exam_title }} ({{ exam.venue }})</option>
+                        {% endfor %}
+                    </select>
+                    <button class="btn btn-success w-100" onclick="startVerificationMode()">
+                        <i class="fas fa-play me-2"></i>Start Verification
+                    </button>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h5>Session Statistics</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <h3 class="text-success" id="verifiedCount">0</h3>
+                            <small class="text-muted">Verified</small>
+                        </div>
+                        <div class="col-6">
+                            <h3 class="text-danger" id="failedCount">0</h3>
+                            <small class="text-muted">Failed</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Verification Scanner</h5>
+                </div>
+                <div class="card-body text-center">
+                    <div class="fingerprint-scanner" id="verificationScanner" onclick="scanForVerification()">
+                        <i class="fas fa-fingerprint fa-4x text-muted" id="verificationIcon"></i>
+                    </div>
+                    <p class="text-muted" id="scannerInstructions">Select an exam to begin verification</p>
+                    
+                    <div id="verificationResult" class="mt-4" style="display: none;">
+                        <!-- Verification results will appear here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let selectedExam = null;
+let verificationActive = false;
+let sessionStats = {verified: 0, failed: 0};
+
+function startVerificationMode() {
+    const examId = document.getElementById('examSelect').value;
+    if (!examId) {
+        alert('Please select an exam first');
+        return;
+    }
+    
+    selectedExam = examId;
+    verificationActive = true;
+    document.getElementById('scannerInstructions').textContent = 'Ready for verification - Click scanner to verify fingerprint';
+    document.getElementById('verificationIcon').className = 'fas fa-fingerprint fa-4x text-primary';
+}
+
+function scanForVerification() {
+    if (!verificationActive) {
+        alert('Please start verification mode first');
+        return;
+    }
+    
+    const scanner = document.getElementById('verificationScanner');
+    const icon = document.getElementById('verificationIcon');
+    const result = document.getElementById('verificationResult');
+    
+    scanner.classList.add('scanning');
+    icon.className = 'fas fa-spinner fa-spin fa-4x text-primary';
+    result.style.display = 'none';
+    
+    // Generate mock fingerprint data for verification
+    const mockFingerprint = btoa('verification_fingerprint_' + Date.now());
+    
+    // Simulate verification process
+    setTimeout(() => {
+        fetch('/api/verify-fingerprint', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                exam_id: selectedExam,
+                fingerprint_data: mockFingerprint
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            scanner.classList.remove('scanning');
+            
+            if (data.success) {
+                // Successful verification
+                icon.className = 'fas fa-check-circle fa-4x text-success';
+                result.innerHTML = `
+                    <div class="alert alert-success">
+                        <h5><i class="fas fa-check-circle me-2"></i>Verification Successful!</h5>
+                        <p><strong>Student:</strong> ${data.student.full_name}</p>
+                        <p><strong>Reg Number:</strong> ${data.student.registration_number}</p>
+                        <p><strong>Department:</strong> ${data.student.department}</p>
+                        <p><strong>Confidence:</strong> ${data.confidence.toFixed(1)}%</p>
+                    </div>
+                `;
+                sessionStats.verified++;
+                document.getElementById('verifiedCount').textContent = sessionStats.verified;
+            } else {
+                // Failed verification
+                icon.className = 'fas fa-times-circle fa-4x text-danger';
+                let message = data.message;
+                let alertClass = 'alert-danger';
+                
+                if (data.status === 'duplicate') {
+                    alertClass = 'alert-warning';
+                }
+                
+                result.innerHTML = `
+                    <div class="alert ${alertClass}">
+                        <h5><i class="fas fa-exclamation-triangle me-2"></i>Verification ${data.status === 'duplicate' ? 'Duplicate' : 'Failed'}</h5>
+                        <p>${message}</p>
+                    </div>
+                `;
+                
+                if (data.status !== 'duplicate') {
+                    sessionStats.failed++;
+                    document.getElementById('failedCount').textContent = sessionStats.failed;
+                }
+            }
+            
+            result.style.display = 'block';
+            
+            // Reset scanner after 3 seconds
+            setTimeout(() => {
+                icon.className = 'fas fa-fingerprint fa-4x text-primary';
+                result.style.display = 'none';
+            }, 3000);
+        })
+        .catch(error => {
+            scanner.classList.remove('scanning');
+            icon.className = 'fas fa-exclamation-triangle fa-4x text-warning';
+            result.innerHTML = `
+                <div class="alert alert-danger">
+                    <h5>System Error</h5>
+                    <p>Error during verification: ${error}</p>
+                </div>
+            `;
+            result.style.display = 'block';
+        });
+    }, 2000);
+}
+</script>
+{% endblock %}

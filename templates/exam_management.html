@@ -1,0 +1,284 @@
+<!-- templates/exam_management.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Exam Management</h1>
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addExamModal">
+            <i class="fas fa-plus me-2"></i>Add New Exam
+        </button>
+    </div>
+    
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Exam Code</th>
+                            <th>Title</th>
+                            <th>Date & Time</th>
+                            <th>Venue</th>
+                            <th>Students</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for data in exam_data %}
+                        {% set exam = data.exam %}
+                        <tr>
+                            <td><strong>{{ exam.exam_code }}</strong></td>
+                            <td>{{ exam.exam_title }}</td>
+                            <td>
+                                {{ exam.exam_date.strftime('%b %d, %Y') }}<br>
+                                <small class="text-muted">{{ exam.start_time.strftime('%H:%M') }} ({{ exam.duration_minutes }}min)</small>
+                            </td>
+                            <td>{{ exam.venue or 'TBA' }}</td>
+                            <td>
+                                {{ data.registered_count }} registered<br>
+                                <small class="text-muted">{{ data.verified_count }} verified</small>
+                            </td>
+                            <td>
+                                <span class="badge bg-{{ 'success' if exam.status == 'active' else ('primary' if exam.status == 'scheduled' else 'secondary') }}">
+                                    {{ exam.status.title() }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    {% if exam.status == 'scheduled' %}
+                                    <button class="btn btn-success" onclick="updateExamStatus({{ exam.id }}, 'active')" title="Start Exam">
+                                        <i class="fas fa-play"></i>
+                                    </button>
+                                    {% elif exam.status == 'active' %}
+                                    <button class="btn btn-warning" onclick="updateExamStatus({{ exam.id }}, 'completed')" title="Complete Exam">
+                                        <i class="fas fa-stop"></i>
+                                    </button>
+                                    {% endif %}
+                                    <button class="btn btn-primary" onclick="registerStudentsModal({{ exam.id }})" title="Register Students">
+                                        <i class="fas fa-user-plus"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted">No exams found</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Exam Modal -->
+<div class="modal fade" id="addExamModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add New Exam</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addExamForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="examCode" class="form-label">Exam Code</label>
+                                <input type="text" class="form-control" id="examCode" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="examTitle" class="form-label">Exam Title</label>
+                                <input type="text" class="form-control" id="examTitle" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="examDate" class="form-label">Exam Date</label>
+                                <input type="date" class="form-control" id="examDate" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="examTime" class="form-label">Start Time</label>
+                                <input type="time" class="form-control" id="examTime" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="examVenue" class="form-label">Venue</label>
+                                <input type="text" class="form-control" id="examVenue">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="examDuration" class="form-label">Duration (minutes)</label>
+                                <input type="number" class="form-control" id="examDuration" value="180">
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" onclick="saveExam()">Save Exam</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Student Registration Modal -->
+<div class="modal fade" id="registerStudentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Register Student for Exam</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="registerStudentForm">
+                    <div class="mb-3">
+                        <label for="studentRegNo" class="form-label">Student Registration Number</label>
+                        <input type="text" class="form-control" id="studentRegNo" placeholder="2020/CS/001" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="seatNumber" class="form-label">Seat Number (Optional)</label>
+                        <input type="text" class="form-control" id="seatNumber" placeholder="A-12">
+                    </div>
+                    <input type="hidden" id="registrationExamId">
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" onclick="registerStudent()">Register Student</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function saveExam() {
+    const form = document.getElementById('addExamForm');
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+    }
+    
+    const examData = {
+        exam_code: document.getElementById('examCode').value,
+        exam_title: document.getElementById('examTitle').value,
+        exam_date: document.getElementById('examDate').value,
+        start_time: document.getElementById('examTime').value,
+        venue: document.getElementById('examVenue').value,
+        duration_minutes: document.getElementById('examDuration').value
+    };
+    
+    fetch('/api/create-exam', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(examData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Exam created successfully!');
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Error creating exam: ' + error);
+    });
+}
+
+function updateExamStatus(examId, newStatus) {
+    if (!confirm(`Are you sure you want to ${newStatus} this exam?`)) {
+        return;
+    }
+    
+    fetch(`/api/update-exam-status/${examId}`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({status: newStatus})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Error updating exam status: ' + error);
+    });
+}
+
+function registerStudentsModal(examId) {
+    document.getElementById('registrationExamId').value = examId;
+    new bootstrap.Modal(document.getElementById('registerStudentModal')).show();
+}
+
+function registerStudent() {
+    const regNo = document.getElementById('studentRegNo').value;
+    const examId = document.getElementById('registrationExamId').value;
+    const seatNumber = document.getElementById('seatNumber').value;
+    
+    if (!regNo) {
+        alert('Please enter student registration number');
+        return;
+    }
+    
+    // First lookup student ID
+    fetch('/api/lookup-student', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({registration_number: regNo})
+    })
+    .then(response => response.json())
+    .then(studentData => {
+        if (studentData.error) {
+            alert('Student not found: ' + studentData.error);
+            return;
+        }
+        
+        // Register student for exam
+        return fetch('/api/register-student-for-exam', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                student_id: studentData.id,
+                exam_id: examId,
+                seat_number: seatNumber
+            })
+        });
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Student registered successfully!');
+            bootstrap.Modal.getInstance(document.getElementById('registerStudentModal')).hide();
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Error registering student: ' + error);
+    });
+}
+</script>
+{% endblock %}

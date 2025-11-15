@@ -1,0 +1,165 @@
+<!-- templates/enrollment.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4">Fingerprint Enrollment</h1>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Student Information</h5>
+                </div>
+                <div class="card-body">
+                    <form id="studentForm">
+                        <div class="mb-3">
+                            <label for="regNumber" class="form-label">Registration Number</label>
+                            <input type="text" class="form-control" id="regNumber" placeholder="2020/241155" required>
+                        </div>
+                        <button type="button" class="btn btn-success" onclick="lookupStudent()">
+                            <i class="fas fa-search me-2"></i>Lookup Student
+                        </button>
+                    </form>
+                    
+                    <div id="studentInfo" class="mt-4" style="display: none;">
+                        <hr>
+                        <h6>Student Details</h6>
+                        <div class="row">
+                            <div class="col-sm-6"><strong>Name:</strong></div>
+                            <div class="col-sm-6" id="studentName"></div>
+                        </div>
+                        <div class="row">
+                            <div class="col-sm-6"><strong>Department:</strong></div>
+                            <div class="col-sm-6" id="studentDepartment"></div>
+                        </div>
+                        <div class="row">
+                            <div class="col-sm-6"><strong>Current Status:</strong></div>
+                            <div class="col-sm-6" id="fingerprintStatus"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Fingerprint Scanner</h5>
+                </div>
+                <div class="card-body text-center">
+                    <div class="fingerprint-scanner" id="scanner" onclick="startScanning()">
+                        <i class="fas fa-fingerprint fa-4x text-muted" id="scannerIcon"></i>
+                    </div>
+                    <p class="text-muted">Click to capture fingerprint</p>
+                    <div id="scanStatus" class="mt-3"></div>
+                    <button type="button" class="btn btn-success" id="enrollBtn" onclick="enrollFingerprint()" disabled>
+                        <i class="fas fa-save me-2"></i>Enroll Fingerprint
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentStudent = null;
+let capturedFingerprint = null;
+
+function lookupStudent() {
+    const regNumber = document.getElementById('regNumber').value;
+    if (!regNumber) {
+        alert('Please enter a registration number');
+        return;
+    }
+    
+    fetch('/api/lookup-student', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({registration_number: regNumber})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            alert(data.error);
+            document.getElementById('studentInfo').style.display = 'none';
+        } else {
+            currentStudent = data;
+            document.getElementById('studentName').textContent = `${data.first_name} ${data.last_name}`;
+            document.getElementById('studentDepartment').textContent = data.department;
+            document.getElementById('fingerprintStatus').innerHTML = data.has_fingerprint ? 
+                '<span class="badge bg-success">Enrolled</span>' : 
+                '<span class="badge bg-warning">Not Enrolled</span>';
+            document.getElementById('studentInfo').style.display = 'block';
+        }
+    })
+    .catch(error => {
+        alert('Error looking up student: ' + error);
+    });
+}
+
+function startScanning() {
+    if (!currentStudent) {
+        alert('Please lookup a student first');
+        return;
+    }
+    
+    const scanner = document.getElementById('scanner');
+    const icon = document.getElementById('scannerIcon');
+    const status = document.getElementById('scanStatus');
+    
+    scanner.classList.add('scanning');
+    icon.className = 'fas fa-spinner fa-spin fa-4x text-primary';
+    status.innerHTML = '<div class="text-primary">Scanning fingerprint...</div>';
+    
+    // Simulate fingerprint capture
+    setTimeout(() => {
+        scanner.classList.remove('scanning');
+        icon.className = 'fas fa-fingerprint fa-4x text-success';
+        status.innerHTML = '<div class="text-success"><i class="fas fa-check-circle me-2"></i>Fingerprint captured successfully</div>';
+        
+        // Generate mock fingerprint data
+        capturedFingerprint = btoa('mock_fingerprint_data_' + Date.now());
+        document.getElementById('enrollBtn').disabled = false;
+    }, 3000);
+}
+
+function enrollFingerprint() {
+    if (!currentStudent || !capturedFingerprint) {
+        alert('Please capture a fingerprint first');
+        return;
+    }
+    
+    fetch('/api/enroll-fingerprint', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            student_id: currentStudent.id,
+            fingerprint_data: capturedFingerprint
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`Fingerprint enrolled successfully! Quality: ${data.quality_score.toFixed(1)}%`);
+            // Reset form
+            document.getElementById('studentForm').reset();
+            document.getElementById('studentInfo').style.display = 'none';
+            document.getElementById('scanStatus').innerHTML = '';
+            document.getElementById('scanner').classList.remove('scanning');
+            document.getElementById('scannerIcon').className = 'fas fa-fingerprint fa-4x text-muted';
+            document.getElementById('enrollBtn').disabled = true;
+            currentStudent = null;
+            capturedFingerprint = null;
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Error enrolling fingerprint: ' + error);
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UNN Exam Verification System</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .sidebar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 250px;
+            z-index: 1000;
+            transition: all 0.3s;
+        }
+
+        .main-content {
+            margin-left: 250px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            min-height: 100vh;
+        }
+
+        .sidebar .nav-link {
+            color: rgba(255, 255, 255, 0.8);
+            padding: 15px 20px;
+            border-radius: 0;
+            transition: all 0.3s;
+        }
+
+        .sidebar .nav-link:hover,
+        .sidebar .nav-link.active {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: white;
+            transform: translateX(5px);
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            transition: transform 0.3s, box-shadow 0.3s;
+            border-left: 4px solid transparent;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        }
+
+        .stat-card.primary { border-left-color: #007bff; }
+        .stat-card.success { border-left-color: #28a745; }
+        .stat-card.warning { border-left-color: #ffc107; }
+        .stat-card.info { border-left-color: #17a2b8; }
+
+        .verification-log {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .log-entry {
+            transition: background-color 0.3s;
+        }
+
+        .log-entry:hover {
+            background-color: #f8f9fa;
+        }
+
+        .badge-success { background-color: #28a745; }
+        .badge-danger { background-color: #dc3545; }
+
+        .page-header {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            margin-bottom: 30px;
+        }
+
+        .table-container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+
+        .navbar-brand {
+            font-weight: bold;
+            font-size: 1.5rem;
+        }
+
+        .fingerprint-scanner {
+            width: 200px;
+            height: 200px;
+            border: 3px solid #007bff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 20px auto;
+            background: linear-gradient(45deg, #f8f9fa, #e9ecef);
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .fingerprint-scanner:hover {
+            border-color: #0056b3;
+            transform: scale(1.05);
+        }
+
+        .fingerprint-scanner.scanning {
+            border-color: #28a745;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+        }
+
+        .modal-content {
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <nav class="sidebar">
+        <div class="p-4">
+            <h4 class="text-white mb-4">
+                <i class="fas fa-shield-alt me-2"></i>
+                UNN Exam System
+            </h4>
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link active" href="#" onclick="showTab('dashboard')">
+                        <i class="fas fa-tachometer-alt me-2"></i> Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" onclick="showTab('enrollment')">
+                        <i class="fas fa-fingerprint me-2"></i> Fingerprint Enrollment
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" onclick="showTab('verification')">
+                        <i class="fas fa-user-check me-2"></i> Live Verification
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" onclick="showTab('exams')">
+                        <i class="fas fa-calendar-alt me-2"></i> Exam Management
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" onclick="showTab('students')">
+                        <i class="fas fa-users me-2"></i> Student Management
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" onclick="showTab('reports')">
+                        <i class="fas fa-chart-line me-2"></i> Reports & Analytics
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" onclick="showTab('audit')">
+                        <i class="fas fa-history me-2"></i> Audit Trail
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Dashboard Tab -->
+        <div id="dashboard" class="tab-content">
+            <div class="page-header p-4 mb-4">
+                <h2 class="mb-0">Dashboard Overview</h2>
+                <p class="text-muted mb-0">Real-time system statistics and recent activity</p>
+            </div>
+
+            <!-- Statistics Cards -->
+            <div class="row mb-4">
+                <div class="col-lg-3 col-md-6 mb-4">
+                    <div class="stat-card primary p-4">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="text-muted">Total Students</h6>
+                                <h2 class="mb-0">12,847</h2>
+                                <small class="text-success">
+                                    <i class="fas fa-arrow-up"></i> 2.3% from last month
+                                </small>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-users fa-2x text-primary"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6 mb-4">
+                    <div class="stat-card success p-4">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="text-muted">Enrolled Fingerprints</h6>
+                                <h2 class="mb-0">11,293</h2>
+                                <small class="text-muted">87.9% coverage</small>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-fingerprint fa-2x text-success"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6 mb-4">
+                    <div class="stat-card warning p-4">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="text-muted">Active Exams</h6>
+                                <h2 class="mb-0">8</h2>
+                                <small class="text-muted">3 in progress</small>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-calendar-check fa-2x text-warning"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6 mb-4">
+                    <div class="stat-card info p-4">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="text-muted">Verification Rate</h6>
+                                <h2 class="mb-0">98.2%</h2>
+                                <small class="text-success">
+                                    <i class="fas fa-arrow-up"></i> Excellent
+                                </small>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-check-circle fa-2x text-info"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="verification-log p-4">
+                <h5 class="mb-4">
+                    <i class="fas fa-activity me-2"></i>
+                    Recent Verification Activity
+                </h5>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Time</th>
+                                <th>Student</th>
+                                <th>Exam</th>
+                                <th>Venue</th>
+                                <th>Status</th>
+                                <th>Confidence</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="log-entry">
+                                <td><small>09:15:23</small></td>
+                                <td>Ada Okafor<br><small class="text-muted">2020/CS/001</small></td>
+                                <td>CSC301</td>
+                                <td>Hall A</td>
+                                <td><span class="badge badge-success">Success</span></td>
+                                <td>94%</td>
+                            </tr>
+                            <tr class="log-entry">
+                                <td><small>09:14:12</small></td>
+                                <td>Chidi Eze<br><small class="text-muted">2020/CS/002</small></td>
+                                <td>CSC301</td>
+                                <td>Hall A</td>
+                                <td><span class="badge badge-success">Success</span></td>
+                                <td>97%</td>
+                            </tr>
+                            <tr class="log-entry">
+                                <td><small>09:13:45</small></td>
+                                <td>Unknown<br><small class="text-muted">---</small></td>
+                                <td>CSC301</td>
+                                <td>Hall A</td>
+                                <td><span class="badge badge-danger">Failed</span></td>
+                                <td>23%</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fingerprint Enrollment Tab -->
+        <div id="enrollment" class="tab-content" style="display:none;">
+            <div class="page-header p-4 mb-4">
+                <h2 class="mb-0">Fingerprint Enrollment</h2>
+                <p class="text-muted mb-0">Register student fingerprints for exam verification</p>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Student Information</h5>
+                            <form id="enrollmentForm">
+                                <div class="mb-3">
+                                    <label for="regNumber" class="form-label">Registration Number</label>
+                                    <input type="text" class="form-control" id="regNumber" placeholder="2020/CS/001" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="studentName" class="form-label">Full Name</label>
+                                    <input type="text" class="form-control" id="studentName" placeholder="Enter student name" readonly>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="department" class="form-label">Department</label>
+                                    <input type="text" class="form-control" id="department" placeholder="Department" readonly>
+                                </div>
+                                <button type="button" class="btn btn-primary" onclick="lookupStudent()">
+                                    <i class="fas fa-search me-2"></i>Lookup Student
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h5 class="card-title">Fingerprint Scanner</h5>
+                            <div class="fingerprint-scanner" id="fingerprintScanner" onclick="startScanning()">
+                                <i class="fas fa-fingerprint fa-4x text-muted" id="scannerIcon"></i>
+                            </div>
+                            <p class="text-muted">Click to start fingerprint capture</p>
+                            <div id="scanStatus" class="mt-3"></div>
+                            <button type="button" class="btn btn-success" id="enrollBtn" onclick="enrollFingerprint()" disabled>
+                                <i class="fas fa-save me-2"></i>Enroll Fingerprint
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Verification Tab -->
+        <div id="verification" class="tab-content" style="display:none;">
+            <div class="page-header p-4 mb-4">
+                <h2 class="mb-0">Live Verification Center</h2>
+                <p class="text-muted mb-0">Real-time fingerprint verification for active exams</p>
+            </div>
+
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <h6 class="card-title">Exam Selection</h6>
+                            <select class="form-select mb-3" id="examSelect">
+                                <option value="">Select Active Exam</option>
+                                <option value="1">CSC301 - Data Structures (Hall A)</option>
+                                <option value="2">MTH201 - Calculus II (Hall B)</option>
+                                <option value="3">PHY301 - Quantum Mechanics (Lab 1)</option>
+                            </select>
+                            <div class="d-grid">
+                                <button class="btn btn-primary" onclick="startVerificationMode()">
+                                    <i class="fas fa-play me-2"></i>Start Verification
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title">Session Statistics</h6>
+                            <div class="row text-center">
+                                <div class="col-6">
+                                    <h4 class="text-success" id="verifiedCount">0</h4>
+                                    <small class="text-muted">Verified</small>
+                                </div>
+                                <div class="col-6">
+                                    <h4 class="text-danger" id="failedCount">0</h4>
+                                    <small class="text-muted">Failed</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">Verification Scanner</h5>
+                            <div class="fingerprint-scanner" id="verificationScanner">
+                                <i class="fas fa-fingerprint fa-4x text-muted"></i>
+                            </div>
+                            <div id="verificationResult" class="mt-3"></div>
+                            <div id="studentInfo" class="mt-3" style="display:none;">
+                                <div class="alert alert-success">
+                                    <h6 id="verifiedStudentName"></h6>
+                                    <p class="mb-0" id="verifiedStudentDetails"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Exam Management Tab -->
+        <div id="exams" class="tab-content" style="display:none;">
+            <div class="page-header p-4 mb-4 d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-0">Exam Management</h2>
+                    <p class="text-muted mb-0">Schedule and manage examination sessions</p>
+                </div>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addExamModal">
+                    <i class="fas fa-plus me-2"></i>Add New Exam
+                </button>
+            </div>
+
+            <div class="table-container">
+                <div class="p-3 bg-light">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                <input type="text" class="form-control" placeholder="Search exams..." id="examSearch">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <select class="form-select">
+                                <option>All Status</option>
+                                <option>Upcoming</option>
+                                <option>In Progress</option>
+                                <option>Completed</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Exam Code</th>
+                                <th>Title</th>
+                                <th>Date & Time</th>
+                                <th>Venue</th>
+                                <th>Students</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>CSC301</strong></td>
+                                <td>Data Structures & Algorithms</td>
+                                <td>Sep 20, 2025<br><small class="text-muted">09:00 AM</small></td>
+                                <td>Hall A</td>
+                                <td>245 enrolled<br><small class="text-muted">238 verified</small></td>
+                                <td><span class="badge bg-success">In Progress</span></td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-primary" title="View Details">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        <button class="btn btn-outline-secondary" title="Edit">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger" title="Delete">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>MTH201</strong></td>
+                                <td>Calculus II</td>
+                                <td>Sep 22, 2025<br><small class="text-muted">02:00 PM</small></td>
+                                <td>Hall B</td>
+                                <td>189 enrolled<br><small class="text-muted">0 verified</small></td>
+                                <td><span class="badge bg-warning">Upcoming</span></td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-primary">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        <button class="btn btn-outline-secondary">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Other tabs content would continue here... -->
+
+        <!-- Student Management Tab -->
+        <div id="students" class="tab-content" style="display:none;">
+            <div class="page-header p-4 mb-4">
+                <h2 class="mb-0">Student Management</h2>
+                <p class="text-muted mb-0">Manage student records and fingerprint status</p>
+            </div>
+            <!-- Student management content -->
+        </div>
+
+        <!-- Reports Tab -->
+        <div id="reports" class="tab-content" style="display:none;">
+            <div class="page-header p-4 mb-4">
+                <h2 class="mb-0">Reports & Analytics</h2>
+                <p class="text-muted mb-0">Generate detailed reports and analytics</p>
+            </div>
+            <!-- Reports content -->
+        </div>
+
+        <!-- Audit Trail Tab -->
+        <div id="audit" class="tab-content" style="display:none;">
+            <div class="page-header p-4 mb-4">
+                <h2 class="mb-0">Audit Trail</h2>
+                <p class="text-muted mb-0">Complete log of all system activities</p>
+            </div>
+            <!-- Audit trail content -->
+        </div>
+    </main>
+
+    <!-- Add Exam Modal -->
+    <div class="modal fade" id="addExamModal" tabindex="-1" aria-labelledby="addExamModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addExamModalLabel">Add New Exam</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addExamForm">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="examCode" class="form-label">Exam Code</label>
+                                    <input type="text" class="form-control" id="examCode" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="examTitle" class="form-label">Exam Title</label>
+                                    <input type="text" class="form-control" id="examTitle" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="examDate" class="form-label">Exam Date</label>
+                                    <input type="date" class="form-control" id="examDate" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="examTime" class="form-label">Exam Time</label>
+                                    <input type="time" class="form-control" id="examTime" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="examVenue" class="form-label">Venue</label>
+                            <input type="text" class="form-control" id="examVenue" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="examDescription" class="form-label">Description</label>
+                            <textarea class="form-control" id="examDescription" rows="3"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveExam()">Save Exam</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Tab switching functionality
+        function showTab(tabName) {
+            // Hide all tabs
+            const tabs = document.querySelectorAll('.tab-content');
+            tabs.forEach(tab => tab.style.display = 'none');
+
+            // Show selected tab
+            document.getElementById(tabName).style.display = 'block';
+
+            // Update active nav link
+            const navLinks = document.querySelectorAll('.nav-link');
+            navLinks.forEach(link => link.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+
+        // Student lookup functionality
+        function lookupStudent() {
+            const regNumber = document.getElementById('regNumber').value;
+            if (!regNumber) {
+                alert('Please enter a registration number');
+                return;
+            }
+
+            // Simulate API call
+            setTimeout(() => {
+                document.getElementById('studentName').value = 'Ada Okafor';
+                document.getElementById('department').value = 'Computer Science';
+            }, 1000);
+        }
+
+        // Fingerprint scanning simulation
+        function startScanning() {
+            const scanner = document.getElementById('fingerprintScanner');
+            const icon = document.getElementById('scannerIcon');
+            const status = document.getElementById('scanStatus');
+
+            scanner.classList.add('scanning');
+            icon.className = 'fas fa-spinner fa-spin fa-4x text-primary';
+            status.innerHTML = '<div class="text-primary">Scanning fingerprint...</div>';
+
+            setTimeout(() => {
+                scanner.classList.remove('scanning');
+                icon.className = 'fas fa-fingerprint fa-4x text-success';
+                status.innerHTML = '<div class="text-success"><i class="fas fa-check-circle me-2"></i>Fingerprint captured successfully</div>';
+                document.getElementById('enrollBtn').disabled = false;
+            }, 3000);
+        }
+
+        function enrollFingerprint() {
+            alert('Fingerprint enrolled successfully!');
+            // Reset form
+            document.getElementById('enrollmentForm').reset();
+            document.getElementById('scanStatus').innerHTML = '';
+            document.getElementById('fingerprintScanner').classList.remove('scanning');
+            document.getElementById('scannerIcon').className = 'fas fa-fingerprint fa-4x text-muted';
+            document.getElementById('enrollBtn').disabled = true;
+        }
+
+        function startVerificationMode() {
+            const examSelect = document.getElementById('examSelect').value;
+            if (!examSelect) {
+                alert('Please select an exam first');
+                return;
+            }
+            alert('Verification mode started for selected exam');
+        }
+
+        function saveExam() {
+            // Validate form
+            const form = document.getElementById('addExamForm');
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+
+            alert('Exam saved successfully!');
+            // Close modal
+            bootstrap.Modal.getInstance(document.getElementById('addExamModal')).hide();
+            // Reset form
+            form.reset();
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            // Show dashboard by default
+            showTab('dashboard');
+        });
+    </script>
+</body>
+</html>

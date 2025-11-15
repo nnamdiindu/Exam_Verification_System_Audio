@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Portal</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.10.0/font/bootstrap-icons.min.css"
+        rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, var(--bs-success) 0%, #0f5132 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .login-wrapper {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            padding: 2rem 0;
+        }
+
+        .login-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: none;
+            box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.175);
+            animation: slideUp 0.6s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .role-tabs {
+            background-color: #f8f9fa;
+            border-radius: 0.5rem;
+            padding: 0.25rem;
+            margin-bottom: 2rem;
+        }
+
+        .role-tab {
+            flex: 1;
+            border: none;
+            background: transparent;
+            padding: 0.75rem 0.5rem;
+            border-radius: 0.375rem;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .role-tab:not(.active) {
+            color: #6c757d;
+        }
+
+        .role-tab.active {
+            background: var(--bs-success);
+            color: white;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        }
+
+        .role-tab:hover:not(.active) {
+            color: var(--bs-success);
+            background-color: rgba(var(--bs-success-rgb), 0.1);
+        }
+
+        .role-icon {
+            font-size: 1.25rem;
+            display: block;
+            margin-bottom: 0.25rem;
+        }
+
+        .password-field {
+            position: relative;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            border: none;
+            background: none;
+            color: #6c757d;
+            cursor: pointer;
+            padding: 0.25rem;
+        }
+
+        .password-toggle:hover {
+            color: var(--bs-success);
+        }
+
+        .form-control:focus {
+            border-color: var(--bs-success);
+            box-shadow: 0 0 0 0.25rem rgba(var(--bs-success-rgb), 0.25);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, var(--bs-success), #0f5132);
+            border: none;
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-success:hover {
+            transform: translateY(-0.125rem);
+            box-shadow: 0 0.5rem 1rem rgba(var(--bs-success-rgb), 0.3);
+            background: linear-gradient(135deg, #0f5132, var(--bs-success));
+        }
+
+        .btn-success:active {
+            transform: translateY(0);
+        }
+
+        .role-info {
+            border-left: 0.25rem solid var(--bs-success);
+            transition: all 0.3s ease;
+        }
+
+        .header-icon {
+            width: 4rem;
+            height: 4rem;
+            background: linear-gradient(135deg, var(--bs-success), #0f5132);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+            color: white;
+            font-size: 1.5rem;
+        }
+
+        .form-floating>label {
+            color: #6c757d;
+        }
+
+        .form-floating>.form-control:focus~label {
+            color: var(--bs-success);
+        }
+
+        @media (max-width: 576px) {
+            .login-wrapper {
+                padding: 1rem;
+            }
+
+            .role-tab {
+                padding: 0.5rem 0.25rem;
+                font-size: 0.875rem;
+            }
+
+            .role-icon {
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container-fluid login-wrapper">
+        <div class="row justify-content-center w-100">
+            <div class="col-lg-4 col-md-6 col-sm-8">
+                <div class="card login-card">
+                    <div class="card-body p-4 p-md-5">
+                        <!-- Header -->
+                        <div class="text-center mb-4">
+                            <div class="header-icon">
+                                <i class="bi bi-shield-lock"></i>
+                            </div>
+                            <h2 class="card-title mb-2 text-success fw-bold">Welcome Back</h2>
+                            <p class="text-muted">Please select your role and sign in</p>
+                        </div>
+
+                        <!-- Role Selection -->
+                        <div class="d-flex role-tabs mb-4" role="tablist">
+                            <button class="role-tab active" data-role="admin" role="tab">
+                                <i class="bi bi-person-gear role-icon"></i>
+                                <small class="fw-semibold">Admin</small>
+                            </button>
+                            <button class="role-tab" data-role="student" role="tab">
+                                <i class="bi bi-mortarboard role-icon"></i>
+                                <small class="fw-semibold">Student</small>
+                            </button>
+                        </div>
+
+                        <!-- Login Form -->
+                        <form id="loginForm">
+                            <div class="form-floating mb-3">
+                                <input type="text" class="form-control" id="username" placeholder="Username" required>
+                                <label for="username">
+                                    <i class="bi bi-person me-2"></i>Username
+                                </label>
+                            </div>
+
+                            <div class="form-floating mb-3 password-field">
+                                <input type="password" class="form-control" id="password" placeholder="Password"
+                                    required>
+                                <button type="button" class="password-toggle" onclick="togglePassword()">
+                                    <i class="bi bi-eye" id="passwordIcon"></i>
+                                </button>
+                                <label for="password">
+                                    <i class="bi bi-lock me-2"></i>Password
+                                </label>
+                            </div>
+
+                            <button type="submit" class="btn btn-success w-100 mb-3">
+                                <span class="btn-text">
+                                    <i class="bi bi-box-arrow-in-right me-2"></i>Sign In
+                                </span>
+                                <span class="spinner-border spinner-border-sm d-none me-2" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </span>
+                            </button>
+                        </form>
+
+                        <div class="text-center">
+                            <a href="#" class="text-success text-decoration-none" onclick="handleForgotPassword()">
+                                <i class="bi bi-question-circle me-1"></i>Forgot your password?
+                            </a>
+                        </div>
+
+                        <!-- Role Information -->
+                        <div class="alert alert-success role-info mt-4" role="alert">
+                            <div class="d-flex align-items-start">
+                                <i class="bi bi-info-circle-fill me-2 mt-1"></i>
+                                <div>
+                                    <strong class="role-title">Admin Access:</strong>
+                                    <div class="role-description">Full system management and configuration capabilities.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="text-center mt-3">
+                    <small class="text-white-50">
+                        <i class="bi bi-shield-check me-1"></i>
+                        Secure Examination Management System
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentRole = 'admin';
+
+        const roleInfos = {
+            admin: {
+                icon: 'bi-person-gear',
+                title: 'Admin Access:',
+                description: 'Full system management and configuration capabilities.'
+            },
+            student: {
+                icon: 'bi-mortarboard',
+                title: 'Student Access:',
+                description: 'Take exams, view results, and manage your profile.'
+            },
+            
+        };
+
+        // Handle role selection
+        document.querySelectorAll('.role-tab').forEach(tab => {
+            tab.addEventListener('click', function () {
+                const role = this.dataset.role;
+                selectRole(role);
+            });
+        });
+
+        function selectRole(role) {
+            currentRole = role;
+
+            // Update active state
+            document.querySelectorAll('.role-tab').forEach(tab => {
+                tab.classList.remove('active');
+                tab.setAttribute('aria-selected', 'false');
+            });
+
+            const activeTab = document.querySelector(`[data-role="${role}"]`);
+            activeTab.classList.add('active');
+            activeTab.setAttribute('aria-selected', 'true');
+
+            // Update role info
+            const roleInfo = roleInfos[role];
+            const roleInfoElement = document.querySelector('.role-info');
+            const iconElement = roleInfoElement.querySelector('i');
+            const titleElement = roleInfoElement.querySelector('.role-title');
+            const descriptionElement = roleInfoElement.querySelector('.role-description');
+
+            iconElement.className = `bi ${roleInfo.icon} me-2 mt-1`;
+            titleElement.textContent = roleInfo.title;
+            descriptionElement.textContent = roleInfo.description;
+
+            // Clear form
+            document.getElementById('loginForm').reset();
+        }
+
+        function togglePassword() {
+            const passwordInput = document.getElementById('password');
+            const passwordIcon = document.getElementById('passwordIcon');
+
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                passwordIcon.className = 'bi bi-eye-slash';
+            } else {
+                passwordInput.type = 'password';
+                passwordIcon.className = 'bi bi-eye';
+            }
+        }
+
+        function handleForgotPassword() {
+            const toast = `
+                <div class="toast align-items-center text-white bg-success border-0" role="alert">
+                    <div class="d-flex">
+                        <div class="toast-body">
+                            <i class="bi bi-envelope me-2"></i>
+                            Password recovery request sent for ${currentRole} account.
+                        </div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                    </div>
+                </div>
+            `;
+
+            const toastContainer = document.createElement('div');
+            toastContainer.innerHTML = toast;
+            toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+            document.body.appendChild(toastContainer);
+
+            const toastElement = new bootstrap.Toast(toastContainer.querySelector('.toast'));
+            toastElement.show();
+
+            setTimeout(() => {
+                document.body.removeChild(toastContainer);
+            }, 5000);
+        }
+
+        // Handle form submission
+        document.getElementById('loginForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value.trim();
+
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const btnText = submitBtn.querySelector('.btn-text');
+            const spinner = submitBtn.querySelector('.spinner-border');
+
+            // Show loading state
+            btnText.classList.add('d-none');
+            spinner.classList.remove('d-none');
+            submitBtn.disabled = true;
+
+            fetch("/api/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username, password })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Redirect if Flask sends redirect_url
+                        if (data.redirect_url) {
+                            window.location.href = data.redirect_url;
+                            return; // stop further execution
+                        }
+
+                        // fallback success alert if no redirect_url provided
+                        const successAlert = document.createElement('div');
+                        successAlert.className = 'alert alert-success alert-dismissible fade show';
+                        successAlert.innerHTML = `
+                <i class="bi bi-check-circle-fill me-2"></i>
+                <strong>Login successful!</strong> Welcome back, ${username}.
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+                        document.querySelector('.card-body').insertBefore(successAlert, document.getElementById('loginForm'));
+
+                        setTimeout(() => {
+                            if (successAlert.parentNode) successAlert.remove();
+                        }, 3000);
+                    } else {
+                        // Show error alert
+                        const errorAlert = document.createElement('div');
+                        errorAlert.className = 'alert alert-danger alert-dismissible fade show';
+                        errorAlert.innerHTML = `
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                <strong>Login failed!</strong> ${data.error || "Invalid credentials"}.
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+                        document.querySelector('.card-body').insertBefore(errorAlert, document.getElementById('loginForm'));
+
+                        setTimeout(() => {
+                            if (errorAlert.parentNode) errorAlert.remove();
+                        }, 3000);
+                    }
+                })
+                .catch(error => {
+                    alert('Error: ' + error);
+                })
+                .finally(() => {
+                    // Reset button
+                    btnText.classList.remove('d-none');
+                    spinner.classList.add('d-none');
+                    submitBtn.disabled = false;
+                });
+        });
+
+        // Add form validation feedback
+        document.querySelectorAll('#loginForm input[required]').forEach(input => {
+            input.addEventListener('blur', function () {
+                if (this.value.trim() === '') {
+                    this.classList.add('is-invalid');
+                } else {
+                    this.classList.remove('is-invalid');
+                    this.classList.add('is-valid');
+                }
+            });
+
+            input.addEventListener('input', function () {
+                if (this.classList.contains('is-invalid') && this.value.trim() !== '') {
+                    this.classList.remove('is-invalid');
+                    this.classList.add('is-valid');
+                }
+            });
+        });
+
+    </script>
+</body>
+
+</html>

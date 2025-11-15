@@ -1,0 +1,96 @@
+<!-- templates/index.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4">Dashboard</h1>
+    
+    <!-- Statistics Cards -->
+     {% if current_user.id < 3 %}
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5>Total Students</h5>
+                    <h2>{{ stats.total_students }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5>Enrolled Fingerprints</h5>
+                    <h2>{{ stats.enrolled_fingerprints }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <h5>Total Exams</h5>
+                    <h2>{{ stats.total_exams }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h5>Active Exams</h5>
+                    <h2>{{ stats.active_exams }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <p>Nothing for you</p>
+    {% endif %}
+    
+    <!-- Recent Activity -->
+    <div class="card">
+        <div class="card-header">
+            <h5><i class="fas fa-activity me-2"></i>Recent Verification Activity</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Student</th>
+                            <th>Exam</th>
+                            <th>Status</th>
+                            <th>Confidence</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for attempt, reg_no, first_name, last_name, exam_code in recent_verifications %}
+                        <tr>
+                            <td>{{ attempt.verification_timestamp.strftime('%H:%M:%S') }}</td>
+                            <td>
+                                {% if first_name %}
+                                    {{ first_name }} {{ last_name }}<br>
+                                    <small class="text-muted">{{ reg_no }}</small>
+                                {% else %}
+                                    Unknown
+                                {% endif %}
+                            </td>
+                            <td>{{ exam_code }}</td>
+                            <td>
+                                <span class="badge bg-{{ 'success' if attempt.verification_status == 'success' else 'danger' }}">
+                                    {{ attempt.verification_status.title() }}
+                                </span>
+                            </td>
+                            <td>{{ attempt.confidence_score or 'N/A' }}%</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted">No recent activity</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
