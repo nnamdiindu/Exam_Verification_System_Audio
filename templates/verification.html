@@ -1,176 +1,607 @@
-<!-- templates/verification.html -->
+<!-- templates/verification.html - Voice Biometric Version -->
 {% extends "base.html" %}
 
 {% block content %}
 <div class="container-fluid">
-    <h1 class="mb-4">Live Verification Center</h1>
-    
+    <!-- Header -->
     <div class="row">
-        <div class="col-md-4">
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5>Exam Selection</h5>
-                </div>
-                <div class="card-body">
-                    <select class="form-select mb-3" id="examSelect">
-                        <option value="">Select Active Exam</option>
-                        {% for exam in active_exams %}
-                        <option value="{{ exam.id }}">{{ exam.exam_code }} - {{ exam.exam_title }} ({{ exam.venue }})</option>
-                        {% endfor %}
-                    </select>
-                    <button class="btn btn-success w-100" onclick="startVerificationMode()">
-                        <i class="fas fa-play me-2"></i>Start Verification
-                    </button>
-                </div>
-            </div>
-            
-            <div class="card">
-                <div class="card-header">
-                    <h5>Session Statistics</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row text-center">
-                        <div class="col-6">
-                            <h3 class="text-success" id="verifiedCount">0</h3>
-                            <small class="text-muted">Verified</small>
+        <div class="col-12">
+            <div class="card border-0 shadow-lg mb-4" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                <div class="card-body py-4">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h1 class="display-5 fw-bold mb-0">🎤 Live Voice Verification Center</h1>
+                            <p class="lead mb-0">NEXUS-7 Voice Biometric Authentication</p>
                         </div>
-                        <div class="col-6">
-                            <h3 class="text-danger" id="failedCount">0</h3>
-                            <small class="text-muted">Failed</small>
+                        <div class="text-end">
+                            <div class="badge bg-light text-dark fs-6" id="sessionStatus">No Active Session</div>
+                            <div class="small mt-1" id="sessionTime">--:--:--</div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-        
-        <div class="col-md-8">
-            <div class="card">
-                <div class="card-header">
-                    <h5>Verification Scanner</h5>
+    </div>
+
+    <div class="row g-4">
+        <!-- Control Panel -->
+        <div class="col-lg-4">
+            <!-- Exam Selection -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-clipboard-list me-2"></i>Exam Selection</h5>
+                </div>
+                <div class="card-body">
+                    <select class="form-select mb-3" id="examSelect">
+                        <option value="">Select Active Exam</option>
+                        {% for exam in active_exams %}
+                        <option value="{{ exam.id }}"
+                                data-title="{{ exam.exam_title }}"
+                                data-code="{{ exam.exam_code }}"
+                                data-venue="{{ exam.venue }}">
+                            {{ exam.exam_code }} - {{ exam.exam_title }}
+                        </option>
+                        {% endfor %}
+                    </select>
+
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-success" onclick="startVerificationSession()" id="startBtn">
+                            <i class="fas fa-play me-2"></i>Start Verification
+                        </button>
+                        <button class="btn btn-danger" onclick="endVerificationSession()" id="endBtn" disabled>
+                            <i class="fas fa-stop me-2"></i>End Session
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Session Statistics -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Session Statistics</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6 mb-3">
+                            <div class="border rounded p-2 bg-light">
+                                <h2 class="text-success mb-1" id="verifiedCount">0</h2>
+                                <small class="text-muted">Verified</small>
+                            </div>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <div class="border rounded p-2 bg-light">
+                                <h2 class="text-danger mb-1" id="failedCount">0</h2>
+                                <small class="text-muted">Failed</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border rounded p-2 bg-light">
+                                <h2 class="text-warning mb-1" id="duplicateCount">0</h2>
+                                <small class="text-muted">Duplicates</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border rounded p-2 bg-light">
+                                <h2 class="text-primary mb-1" id="successRate">0%</h2>
+                                <small class="text-muted">Success Rate</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="progress mb-2" style="height: 8px;">
+                        <div class="progress-bar bg-success" role="progressbar"
+                             style="width: 0%" id="successProgressBar"></div>
+                    </div>
+                    <small class="text-muted d-block text-center" id="totalAttempts">Total Attempts: 0</small>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="card shadow">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="fas fa-tools me-2"></i>Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-outline-primary btn-sm" onclick="refreshStats()">
+                            <i class="fas fa-sync-alt me-2"></i>Refresh Stats
+                        </button>
+                        <button class="btn btn-outline-warning btn-sm" onclick="testMicrophone()">
+                            <i class="fas fa-microphone me-2"></i>Test Microphone
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Voice Verification Scanner -->
+        <div class="col-lg-8">
+            <div class="card shadow h-100" style="background: linear-gradient(145deg, #1a1a2e, #16213e); color: white;">
+                <div class="card-header bg-transparent border-bottom border-info">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0 text-info">
+                            <i class="fas fa-microphone me-2"></i>Voice Biometric Verification
+                        </h5>
+                        <div class="scanner-status" id="scannerStatusIndicator">
+                            <i class="fas fa-circle text-secondary me-1"></i>
+                            <span class="small">Idle</span>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-body text-center">
-                    <div class="fingerprint-scanner" id="verificationScanner" onclick="scanForVerification()">
-                        <i class="fas fa-fingerprint fa-4x text-muted" id="verificationIcon"></i>
+                    <!-- Display -->
+                    <div class="scanner-display mb-4" id="verificationDisplay">
+                        <div class="terminal-text" id="displayText">
+                            > SELECT AN EXAM TO BEGIN VERIFICATION...
+                        </div>
                     </div>
-                    <p class="text-muted" id="scannerInstructions">Select an exam to begin verification</p>
-                    
-                    <div id="verificationResult" class="mt-4" style="display: none;">
-                        <!-- Verification results will appear here -->
+
+                    <!-- Voice Verification Pad -->
+                    <div class="verification-pad-container">
+                        <div class="voice-verification-pad" id="verificationPad" onclick="verifyVoice()">
+                            <div class="voice-wave-verify" id="voiceWaveVerify">
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                            </div>
+                            <i class="fas fa-microphone fa-5x" id="verificationIcon"></i>
+                            <div class="listening-indicator" id="listeningIndicator" style="display: none;">
+                                <i class="fas fa-circle text-danger pulse"></i>
+                                <span class="ms-2">LISTENING</span>
+                            </div>
+                        </div>
+                        <p class="mt-3 text-muted" id="scannerInstructions">Select an exam to begin verification</p>
+                        <div class="alert alert-info mt-2" style="font-size: 0.875rem; display: none;" id="speakPrompt">
+                            <strong>Say:</strong> "My name is [Your Name] and my registration number is [Number]"
+                        </div>
+                    </div>
+
+                    <!-- Verification Results -->
+                    <div id="verificationResult" class="mt-4" style="display: none;"></div>
+
+                    <!-- Recent Verifications -->
+                    <div class="mt-4">
+                        <h6 class="text-info mb-3">Recent Verifications</h6>
+                        <div id="recentVerifications" class="verification-log">
+                            <div class="text-muted small">No recent verifications</div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<!-- Status Toast -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div id="statusToast" class="toast align-items-center border-0" role="alert">
+        <div class="d-flex">
+            <div class="toast-body" id="toastMessage"></div>
+            <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+.scanner-display {
+    background: rgba(0, 0, 0, 0.9);
+    border: 2px solid #17a2b8;
+    border-radius: 10px;
+    padding: 20px;
+    font-family: 'Courier New', monospace;
+    min-height: 80px;
+}
+
+.terminal-text {
+    color: #17a2b8;
+    font-size: 16px;
+    line-height: 1.4;
+    text-align: left;
+}
+
+.voice-verification-pad {
+    width: 220px;
+    height: 220px;
+    background: radial-gradient(circle, #001122, #002244);
+    border: 4px solid #6c757d;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin: 20px auto;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.voice-verification-pad:hover {
+    transform: scale(1.05);
+}
+
+.voice-verification-pad.ready {
+    border-color: #17a2b8;
+    box-shadow: 0 0 30px rgba(23, 162, 184, 0.4);
+    animation: readyPulse 2s ease-in-out infinite;
+}
+
+.voice-verification-pad.listening {
+    border-color: #dc3545;
+    box-shadow: 0 0 40px rgba(220, 53, 69, 0.6);
+    animation: listenPulse 1s ease-in-out infinite;
+}
+
+.voice-verification-pad.success {
+    border-color: #28a745;
+    box-shadow: 0 0 40px rgba(40, 167, 69, 0.7);
+}
+
+.voice-verification-pad.error {
+    border-color: #dc3545;
+    box-shadow: 0 0 40px rgba(220, 53, 69, 0.7);
+}
+
+.voice-wave-verify {
+    position: absolute;
+    display: flex;
+    gap: 4px;
+    align-items: flex-end;
+    height: 50px;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.voice-verification-pad.listening .voice-wave-verify {
+    opacity: 1;
+}
+
+.wave-bar {
+    width: 6px;
+    height: 10px;
+    background: #dc3545;
+    border-radius: 3px;
+    animation: wave 0.6s ease-in-out infinite;
+}
+
+.wave-bar:nth-child(1) { animation-delay: 0s; }
+.wave-bar:nth-child(2) { animation-delay: 0.1s; }
+.wave-bar:nth-child(3) { animation-delay: 0.2s; }
+.wave-bar:nth-child(4) { animation-delay: 0.3s; }
+.wave-bar:nth-child(5) { animation-delay: 0.4s; }
+.wave-bar:nth-child(6) { animation-delay: 0.5s; }
+.wave-bar:nth-child(7) { animation-delay: 0.6s; }
+
+@keyframes wave {
+    0%, 100% { height: 10px; }
+    50% { height: 50px; }
+}
+
+@keyframes readyPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+@keyframes listenPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+.listening-indicator {
+    position: absolute;
+    bottom: 20px;
+    font-size: 0.875rem;
+    font-weight: bold;
+}
+
+.pulse {
+    animation: pulse-dot 1s infinite;
+}
+
+@keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+.verification-log {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.verification-entry {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+    margin-bottom: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+    border-left: 4px solid #6c757d;
+    font-size: 0.875rem;
+}
+
+.verification-entry.success { border-left-color: #28a745; }
+.verification-entry.failed { border-left-color: #dc3545; }
+.verification-entry.duplicate { border-left-color: #fd7e14; }
+</style>
 {% endblock %}
 
 {% block scripts %}
 <script>
 let selectedExam = null;
 let verificationActive = false;
-let sessionStats = {verified: 0, failed: 0};
+let isListening = false;
+let statsUpdateInterval = null;
 
-function startVerificationMode() {
-    const examId = document.getElementById('examSelect').value;
-    if (!examId) {
-        alert('Please select an exam first');
-        return;
-    }
-    
-    selectedExam = examId;
-    verificationActive = true;
-    document.getElementById('scannerInstructions').textContent = 'Ready for verification - Click scanner to verify fingerprint';
-    document.getElementById('verificationIcon').className = 'fas fa-fingerprint fa-4x text-primary';
+function showToast(message, type = 'info') {
+    const toast = document.getElementById('statusToast');
+    const toastMessage = document.getElementById('toastMessage');
+    const toastBootstrap = new bootstrap.Toast(toast);
+
+    toast.className = `toast align-items-center border-0 text-bg-${type}`;
+    toastMessage.textContent = message;
+    toastBootstrap.show();
 }
 
-function scanForVerification() {
-    if (!verificationActive) {
-        alert('Please start verification mode first');
+function updateDisplay(message) {
+    document.getElementById('displayText').textContent = `> ${message}`;
+}
+
+function updateStatus(status, color = 'secondary') {
+    const indicator = document.getElementById('scannerStatusIndicator');
+    indicator.innerHTML = `<i class="fas fa-circle text-${color} me-1"></i><span class="small">${status}</span>`;
+}
+
+function startVerificationSession() {
+    const examSelect = document.getElementById('examSelect');
+    const examId = examSelect.value;
+
+    if (!examId) {
+        showToast('Please select an exam first', 'warning');
         return;
     }
-    
-    const scanner = document.getElementById('verificationScanner');
-    const icon = document.getElementById('verificationIcon');
-    const result = document.getElementById('verificationResult');
-    
-    scanner.classList.add('scanning');
-    icon.className = 'fas fa-spinner fa-spin fa-4x text-primary';
-    result.style.display = 'none';
-    
-    // Generate mock fingerprint data for verification
-    const mockFingerprint = btoa('verification_fingerprint_' + Date.now());
-    
-    // Simulate verification process
-    setTimeout(() => {
-        fetch('/api/verify-fingerprint', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                exam_id: selectedExam,
-                fingerprint_data: mockFingerprint
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            scanner.classList.remove('scanning');
-            
-            if (data.success) {
-                // Successful verification
-                icon.className = 'fas fa-check-circle fa-4x text-success';
-                result.innerHTML = `
-                    <div class="alert alert-success">
-                        <h5><i class="fas fa-check-circle me-2"></i>Verification Successful!</h5>
-                        <p><strong>Student:</strong> ${data.student.full_name}</p>
-                        <p><strong>Reg Number:</strong> ${data.student.registration_number}</p>
-                        <p><strong>Department:</strong> ${data.student.department}</p>
-                        <p><strong>Confidence:</strong> ${data.confidence.toFixed(1)}%</p>
-                    </div>
-                `;
-                sessionStats.verified++;
-                document.getElementById('verifiedCount').textContent = sessionStats.verified;
-            } else {
-                // Failed verification
-                icon.className = 'fas fa-times-circle fa-4x text-danger';
-                let message = data.message;
-                let alertClass = 'alert-danger';
-                
-                if (data.status === 'duplicate') {
-                    alertClass = 'alert-warning';
-                }
-                
-                result.innerHTML = `
-                    <div class="alert ${alertClass}">
-                        <h5><i class="fas fa-exclamation-triangle me-2"></i>Verification ${data.status === 'duplicate' ? 'Duplicate' : 'Failed'}</h5>
-                        <p>${message}</p>
-                    </div>
-                `;
-                
-                if (data.status !== 'duplicate') {
-                    sessionStats.failed++;
-                    document.getElementById('failedCount').textContent = sessionStats.failed;
-                }
+
+    const selectedOption = examSelect.options[examSelect.selectedIndex];
+    const examData = {
+        id: examId,
+        title: selectedOption.dataset.title,
+        code: selectedOption.dataset.code
+    };
+
+    document.getElementById('startBtn').disabled = true;
+
+    fetch('/api/start-verification-session', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({exam_id: examId})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            selectedExam = examData;
+            verificationActive = true;
+
+            document.getElementById('sessionStatus').textContent = 'Active Session';
+            document.getElementById('sessionStatus').className = 'badge bg-success fs-6';
+
+            updateDisplay(`VERIFICATION SESSION STARTED - ${data.exam_code}`);
+            updateStatus('Ready', 'info');
+
+            document.getElementById('scannerInstructions').textContent = 'Click microphone and speak to verify';
+            document.getElementById('speakPrompt').style.display = 'block';
+            document.getElementById('verificationIcon').style.color = '#17a2b8';
+            document.getElementById('verificationPad').classList.add('ready');
+
+            document.getElementById('endBtn').disabled = false;
+
+            showToast(`Verification started for ${data.exam_code}`, 'success');
+
+            statsUpdateInterval = setInterval(refreshStats, 5000);
+        } else {
+            showToast('Failed to start session', 'danger');
+        }
+    })
+    .catch(error => {
+        showToast('Error starting session: ' + error, 'danger');
+    })
+    .finally(() => {
+        document.getElementById('startBtn').disabled = false;
+    });
+}
+
+function endVerificationSession() {
+    if (!verificationActive) return;
+
+    document.getElementById('endBtn').disabled = true;
+
+    fetch('/api/end-verification-session', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({exam_id: selectedExam.id})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            verificationActive = false;
+            selectedExam = null;
+
+            document.getElementById('sessionStatus').textContent = 'No Active Session';
+            document.getElementById('sessionStatus').className = 'badge bg-light text-dark fs-6';
+
+            updateDisplay('SESSION ENDED');
+            updateStatus('Idle', 'secondary');
+
+            document.getElementById('verificationPad').classList.remove('ready');
+            document.getElementById('speakPrompt').style.display = 'none';
+
+            if (statsUpdateInterval) {
+                clearInterval(statsUpdateInterval);
             }
-            
-            result.style.display = 'block';
-            
-            // Reset scanner after 3 seconds
-            setTimeout(() => {
-                icon.className = 'fas fa-fingerprint fa-4x text-primary';
-                result.style.display = 'none';
-            }, 3000);
-        })
-        .catch(error => {
-            scanner.classList.remove('scanning');
-            icon.className = 'fas fa-exclamation-triangle fa-4x text-warning';
+
+            showToast(`Session ended. ${data.session_summary.successful_verifications} verified.`, 'info');
+        }
+    })
+    .catch(error => {
+        showToast('Error ending session: ' + error, 'danger');
+    });
+}
+
+function verifyVoice() {
+    if (!verificationActive || isListening) return;
+
+    const pad = document.getElementById('verificationPad');
+    const icon = document.getElementById('verificationIcon');
+    const indicator = document.getElementById('listeningIndicator');
+    const result = document.getElementById('verificationResult');
+
+    isListening = true;
+    pad.classList.remove('ready', 'success', 'error');
+    pad.classList.add('listening');
+    icon.style.color = '#dc3545';
+    indicator.style.display = 'block';
+    result.style.display = 'none';
+
+    updateDisplay('CAPTURING VOICE BIOMETRIC...');
+    updateStatus('Listening', 'warning');
+
+    showToast('Listening... Speak now!', 'info');
+
+    fetch('/api/verify-fingerprint', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({exam_id: selectedExam.id})
+    })
+    .then(response => response.json())
+    .then(data => {
+        isListening = false;
+        pad.classList.remove('listening');
+        indicator.style.display = 'none';
+
+        if (data.success && data.status === 'verified') {
+            pad.classList.add('success');
+            icon.style.color = '#28a745';
+
+            updateDisplay(`VERIFIED - WELCOME ${data.student.name.toUpperCase()}`);
+            updateStatus('Verified', 'success');
+
             result.innerHTML = `
-                <div class="alert alert-danger">
-                    <h5>System Error</h5>
-                    <p>Error during verification: ${error}</p>
+                <div class="alert alert-success">
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="fas fa-check-circle fa-2x me-3"></i>
+                        <div>
+                            <h5 class="mb-1">Voice Verified!</h5>
+                            <small>Confidence: ${data.confidence_score.toFixed(1)}%</small>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-6"><strong>Name:</strong> ${data.student.name}</div>
+                        <div class="col-6"><strong>Reg:</strong> ${data.student.registration_number}</div>
+                    </div>
                 </div>
             `;
-            result.style.display = 'block';
-        });
-    }, 2000);
+            showToast(`Welcome ${data.student.name}!`, 'success');
+
+        } else if (data.status === 'duplicate') {
+            pad.classList.add('error');
+            icon.style.color = '#fd7e14';
+            updateDisplay('DUPLICATE - ALREADY VERIFIED');
+            result.innerHTML = `<div class="alert alert-warning"><h5>Already Verified</h5><p>${data.message}</p></div>`;
+            showToast('Student already verified', 'warning');
+
+        } else {
+            pad.classList.add('error');
+            icon.style.color = '#dc3545';
+            updateDisplay('VOICE NOT RECOGNIZED');
+            result.innerHTML = `<div class="alert alert-danger"><h5>Verification Failed</h5><p>${data.message}</p></div>`;
+            showToast('Voice not recognized', 'danger');
+        }
+
+        result.style.display = 'block';
+
+        setTimeout(() => {
+            pad.classList.remove('success', 'error');
+            pad.classList.add('ready');
+            icon.style.color = '#17a2b8';
+            result.style.display = 'none';
+            updateDisplay(`READY - ${selectedExam.code}`);
+            updateStatus('Ready', 'info');
+        }, 4000);
+
+        refreshStats();
+    })
+    .catch(error => {
+        isListening = false;
+        pad.classList.remove('listening');
+        pad.classList.add('error');
+        indicator.style.display = 'none';
+        showToast('Verification error: ' + error, 'danger');
+    });
+}
+
+function refreshStats() {
+    if (!verificationActive || !selectedExam) return;
+
+    fetch(`/api/verification-session-stats/${selectedExam.id}`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.session_active) {
+            document.getElementById('verifiedCount').textContent = data.successful_verifications;
+            document.getElementById('failedCount').textContent = data.failed_attempts;
+            document.getElementById('duplicateCount').textContent = data.duplicate_attempts;
+            document.getElementById('successRate').textContent = data.success_rate + '%';
+            document.getElementById('totalAttempts').textContent = `Total: ${data.total_attempts}`;
+            document.getElementById('successProgressBar').style.width = data.success_rate + '%';
+
+            updateRecentVerifications(data.recent_verifications);
+        }
+    });
+}
+
+function updateRecentVerifications(verifications) {
+    const container = document.getElementById('recentVerifications');
+    if (!verifications || verifications.length === 0) {
+        container.innerHTML = '<div class="text-muted small">No recent verifications</div>';
+        return;
+    }
+
+    let html = '';
+    verifications.forEach(v => {
+        const statusClass = v.status === 'success' ? 'success' :
+                          v.status === 'duplicate' ? 'duplicate' : 'failed';
+        html += `
+            <div class="verification-entry ${statusClass}">
+                <div><strong>${v.student_name}</strong><div class="small text-muted">${v.registration_number}</div></div>
+                <div class="text-end"><div class="small">${new Date(v.timestamp).toLocaleTimeString()}</div></div>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+}
+
+function testMicrophone() {
+    updateDisplay('TESTING MICROPHONE...');
+    fetch('/api/scanner-status')
+    .then(response => response.json())
+    .then(data => {
+        if (data.data.operational) {
+            updateDisplay('MICROPHONE TEST SUCCESSFUL');
+            showToast('Microphone working', 'success');
+        } else {
+            updateDisplay('MICROPHONE TEST FAILED');
+            showToast('Microphone not available', 'danger');
+        }
+    });
 }
 </script>
 {% endblock %}

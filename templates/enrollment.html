@@ -1,80 +1,398 @@
-<!-- templates/enrollment.html -->
+<!-- templates/enrollment.html - Voice Biometric Version -->
 {% extends "base.html" %}
 
 {% block content %}
 <div class="container-fluid">
-    <h1 class="mb-4">Fingerprint Enrollment</h1>
-    
     <div class="row">
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header">
-                    <h5>Student Information</h5>
+        <div class="col-12">
+            <div class="card border-0 shadow-lg" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                <div class="card-body text-center py-4">
+                    <h1 class="display-4 fw-bold">🎤 NEXUS-7 Voice Biometric System</h1>
+                    <p class="lead">Advanced Voice Authentication - Version 2.1.4</p>
+                    <div class="scanner-status-indicator">
+                        {% if scanner_available %}
+                            <i class="fas fa-microphone text-success me-2"></i>
+                            <span class="badge bg-success">Microphone Online</span>
+                        {% else %}
+                            <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                            <span class="badge bg-warning">Microphone Offline</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <!-- Student Information Panel -->
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100 shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-user-graduate me-2"></i>Student Information
+                    </h5>
                 </div>
                 <div class="card-body">
                     <form id="studentForm">
                         <div class="mb-3">
-                            <label for="regNumber" class="form-label">Registration Number</label>
-                            <input type="text" class="form-control" id="regNumber" placeholder="2020/241155" required>
+                            <label for="regNumber" class="form-label fw-bold">Registration Number</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control form-control-lg"
+                                       id="regNumber" placeholder="2020/241155" required>
+                                <button type="button" class="btn btn-success" onclick="lookupStudent()" id="lookupBtn">
+                                    <i class="fas fa-search me-2"></i>Lookup
+                                </button>
+                            </div>
                         </div>
-                        <button type="button" class="btn btn-success" onclick="lookupStudent()">
-                            <i class="fas fa-search me-2"></i>Lookup Student
-                        </button>
                     </form>
-                    
+
+                    <!-- Student Details -->
                     <div id="studentInfo" class="mt-4" style="display: none;">
-                        <hr>
-                        <h6>Student Details</h6>
-                        <div class="row">
-                            <div class="col-sm-6"><strong>Name:</strong></div>
-                            <div class="col-sm-6" id="studentName"></div>
+                        <div class="alert alert-info">
+                            <h6 class="alert-heading"><i class="fas fa-user me-2"></i>Student Details</h6>
+                            <hr>
+                            <div class="row mb-2">
+                                <div class="col-sm-4 fw-bold">Name:</div>
+                                <div class="col-sm-8" id="studentName"></div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-sm-4 fw-bold">Department:</div>
+                                <div class="col-sm-8" id="studentDepartment"></div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-4 fw-bold">Status:</div>
+                                <div class="col-sm-8" id="voiceprintStatus"></div>
+                            </div>
                         </div>
-                        <div class="row">
-                            <div class="col-sm-6"><strong>Department:</strong></div>
-                            <div class="col-sm-6" id="studentDepartment"></div>
-                        </div>
-                        <div class="row">
-                            <div class="col-sm-6"><strong>Current Status:</strong></div>
-                            <div class="col-sm-6" id="fingerprintStatus"></div>
+                    </div>
+
+                    <!-- System Status -->
+                    <div class="mt-4">
+                        <h6>Voice System Status</h6>
+                        <div class="border rounded p-3" style="background: #f8f9fa;">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span>Microphone:</span>
+                                <span id="hardwareStatus" class="badge bg-secondary">Checking...</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span>System Type:</span>
+                                <span class="badge bg-info">VOICE BIOMETRIC</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>Last Update:</span>
+                                <span id="lastUpdate" class="small text-muted">--</span>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-        
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header">
-                    <h5>Fingerprint Scanner</h5>
+
+        <!-- Voice Capture Interface Panel -->
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100 shadow" style="background: linear-gradient(145deg, #1a1a2e, #16213e); color: white;">
+                <div class="card-header bg-transparent border-bottom border-cyan">
+                    <h5 class="mb-0 text-cyan">
+                        <i class="fas fa-microphone me-2"></i>Voice Biometric Interface
+                    </h5>
                 </div>
                 <div class="card-body text-center">
-                    <div class="fingerprint-scanner" id="scanner" onclick="startScanning()">
-                        <i class="fas fa-fingerprint fa-4x text-muted" id="scannerIcon"></i>
+                    <!-- Display -->
+                    <div class="scanner-display mb-4" id="scannerDisplay">
+                        <div class="terminal-text" id="displayText">
+                            > SYSTEM READY - AWAITING STUDENT DATA...
+                        </div>
                     </div>
-                    <p class="text-muted">Click to capture fingerprint</p>
-                    <div id="scanStatus" class="mt-3"></div>
-                    <button type="button" class="btn btn-success" id="enrollBtn" onclick="enrollFingerprint()" disabled>
-                        <i class="fas fa-save me-2"></i>Enroll Fingerprint
-                    </button>
+
+                    <!-- Voice Capture Zone -->
+                    <div class="voice-capture-zone" id="captureZone">
+                        <div class="voice-pad" id="voicePad">
+                            <div class="voice-wave" id="voiceWave">
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                            </div>
+                            <i class="fas fa-microphone fa-4x" id="voiceIcon"></i>
+                            <div class="recording-indicator" id="recordingIndicator" style="display: none;">
+                                <i class="fas fa-circle text-danger"></i>
+                                <span class="ms-2">RECORDING</span>
+                            </div>
+                        </div>
+                        <p class="mt-3 text-muted" id="instructionText">Click microphone when ready to speak</p>
+                        <div class="alert alert-info mt-2" style="font-size: 0.875rem;">
+                            <strong>Say:</strong> "My name is [Your Name] and my registration number is [Number]"
+                        </div>
+                    </div>
+
+                    <!-- Capture Results -->
+                    <div id="captureResults" class="mt-4" style="display: none;">
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <div class="metric-card">
+                                    <div class="metric-value" id="qualityScore">--</div>
+                                    <div class="metric-label">Quality</div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="metric-card">
+                                    <div class="metric-value" id="pitchValue">--</div>
+                                    <div class="metric-label">Pitch (Hz)</div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="metric-card">
+                                    <div class="metric-value" id="durationValue">--</div>
+                                    <div class="metric-label">Duration (s)</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="mt-4">
+                        <button type="button" class="btn btn-primary btn-lg me-3"
+                                onclick="startVoiceCapture()" id="captureBtn" disabled>
+                            <i class="fas fa-microphone me-2"></i>Start Recording
+                        </button>
+                        <button type="button" class="btn btn-success btn-lg me-3"
+                                onclick="enrollVoiceprint()" id="enrollBtn" disabled>
+                            <i class="fas fa-save me-2"></i>Enroll
+                        </button>
+                        <button type="button" class="btn btn-warning btn-lg" onclick="resetSystem()">
+                            <i class="fas fa-redo me-2"></i>Reset
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<!-- Status Messages -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div id="statusToast" class="toast align-items-center border-0" role="alert">
+        <div class="d-flex">
+            <div class="toast-body" id="toastMessage"></div>
+            <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+.scanner-display {
+    background: rgba(0, 0, 0, 0.8);
+    border: 2px solid #00ffff;
+    border-radius: 8px;
+    padding: 20px;
+    font-family: 'Courier New', monospace;
+    min-height: 80px;
+}
+
+.terminal-text {
+    color: #00ffff;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.voice-pad {
+    width: 200px;
+    height: 200px;
+    background: radial-gradient(circle, #001122, #002244);
+    border: 4px solid #6c757d;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.voice-pad:hover {
+    transform: scale(1.05);
+}
+
+.voice-pad.ready {
+    border-color: #00ffff;
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+}
+
+.voice-pad.recording {
+    border-color: #dc3545;
+    box-shadow: 0 0 30px rgba(220, 53, 69, 0.6);
+    animation: pulse 1.5s infinite;
+}
+
+.voice-pad.success {
+    border-color: #28a745;
+    box-shadow: 0 0 20px rgba(40, 167, 69, 0.5);
+}
+
+.voice-pad.error {
+    border-color: #ffc107;
+    box-shadow: 0 0 20px rgba(255, 193, 7, 0.5);
+}
+
+.voice-wave {
+    position: absolute;
+    display: flex;
+    gap: 4px;
+    align-items: flex-end;
+    height: 40px;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.voice-pad.recording .voice-wave {
+    opacity: 1;
+}
+
+.wave-bar {
+    width: 6px;
+    height: 10px;
+    background: #00ffff;
+    border-radius: 3px;
+    animation: wave 0.8s ease-in-out infinite;
+}
+
+.wave-bar:nth-child(1) { animation-delay: 0s; }
+.wave-bar:nth-child(2) { animation-delay: 0.1s; }
+.wave-bar:nth-child(3) { animation-delay: 0.2s; }
+.wave-bar:nth-child(4) { animation-delay: 0.3s; }
+.wave-bar:nth-child(5) { animation-delay: 0.4s; }
+
+@keyframes wave {
+    0%, 100% { height: 10px; }
+    50% { height: 40px; }
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+.recording-indicator {
+    position: absolute;
+    bottom: 20px;
+    font-size: 0.875rem;
+    font-weight: bold;
+    animation: blink 1s infinite;
+}
+
+@keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0.3; }
+}
+
+.metric-card {
+    background: rgba(0, 255, 255, 0.1);
+    border: 1px solid rgba(0, 255, 255, 0.3);
+    border-radius: 8px;
+    padding: 15px;
+}
+
+.metric-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #00ffff;
+}
+
+.metric-label {
+    font-size: 0.875rem;
+    color: #adb5bd;
+}
+
+.text-cyan {
+    color: #00ffff !important;
+}
+
+.border-cyan {
+    border-color: #00ffff !important;
+}
+</style>
 {% endblock %}
 
 {% block scripts %}
 <script>
 let currentStudent = null;
-let capturedFingerprint = null;
+let currentVoiceData = null;
+let systemReady = false;
+let isRecording = false;
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    checkMicrophoneStatus();
+    setInterval(checkMicrophoneStatus, 30000);
+
+    // Click handler for voice pad
+    document.getElementById('voicePad').addEventListener('click', function() {
+        if (this.classList.contains('ready') && !document.getElementById('captureBtn').disabled && !isRecording) {
+            startVoiceCapture();
+        }
+    });
+});
+
+function checkMicrophoneStatus() {
+    fetch('/api/scanner-status')
+        .then(response => response.json())
+        .then(data => {
+            const statusElement = document.getElementById('hardwareStatus');
+            const lastUpdateElement = document.getElementById('lastUpdate');
+
+            if (data.data.operational) {
+                statusElement.className = 'badge bg-success';
+                statusElement.textContent = 'Online';
+                systemReady = true;
+            } else {
+                statusElement.className = 'badge bg-danger';
+                statusElement.textContent = 'Offline';
+                systemReady = false;
+            }
+
+            lastUpdateElement.textContent = new Date().toLocaleTimeString();
+            updateDisplay(data.message);
+        })
+        .catch(error => {
+            console.error('Status check failed:', error);
+            document.getElementById('hardwareStatus').className = 'badge bg-danger';
+            document.getElementById('hardwareStatus').textContent = 'Error';
+        });
+}
+
+function updateDisplay(message) {
+    document.getElementById('displayText').textContent = `> ${message}`;
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.getElementById('statusToast');
+    const toastMessage = document.getElementById('toastMessage');
+    const toastBootstrap = new bootstrap.Toast(toast);
+
+    toast.className = `toast align-items-center border-0 text-bg-${type}`;
+    toastMessage.textContent = message;
+    toastBootstrap.show();
+}
 
 function lookupStudent() {
-    const regNumber = document.getElementById('regNumber').value;
+    const regNumber = document.getElementById('regNumber').value.trim();
     if (!regNumber) {
-        alert('Please enter a registration number');
+        showToast('Please enter a registration number', 'warning');
         return;
     }
-    
+
+    const lookupBtn = document.getElementById('lookupBtn');
+    lookupBtn.disabled = true;
+    lookupBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Looking up...';
+
+    updateDisplay('SEARCHING STUDENT DATABASE...');
+
     fetch('/api/lookup-student', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -83,83 +401,256 @@ function lookupStudent() {
     .then(response => response.json())
     .then(data => {
         if (data.error) {
-            alert(data.error);
+            showToast(data.error, 'danger');
             document.getElementById('studentInfo').style.display = 'none';
+            updateDisplay('ERROR: STUDENT RECORD NOT FOUND');
+            currentStudent = null;
         } else {
             currentStudent = data;
             document.getElementById('studentName').textContent = `${data.first_name} ${data.last_name}`;
-            document.getElementById('studentDepartment').textContent = data.department;
-            document.getElementById('fingerprintStatus').innerHTML = data.has_fingerprint ? 
-                '<span class="badge bg-success">Enrolled</span>' : 
-                '<span class="badge bg-warning">Not Enrolled</span>';
+            document.getElementById('studentDepartment').textContent = data.department || 'N/A';
+
+            const statusBadge = data.has_fingerprint ?
+                '<span class="badge bg-success"><i class="fas fa-check me-1"></i>Enrolled</span>' :
+                '<span class="badge bg-warning"><i class="fas fa-exclamation-triangle me-1"></i>Not Enrolled</span>';
+            document.getElementById('voiceprintStatus').innerHTML = statusBadge;
+
             document.getElementById('studentInfo').style.display = 'block';
+
+            if (data.has_fingerprint) {
+                updateDisplay('WARNING: VOICE PRINT ALREADY EXISTS');
+                showToast('Student already has voiceprint enrolled', 'warning');
+                document.getElementById('captureBtn').disabled = true;
+            } else {
+                updateDisplay('STUDENT VERIFIED - VOICE CAPTURE AUTHORIZED');
+                showToast('Student found! Ready for voice enrollment', 'success');
+                document.getElementById('captureBtn').disabled = false;
+                document.getElementById('voicePad').classList.add('ready');
+            }
         }
     })
     .catch(error => {
-        alert('Error looking up student: ' + error);
+        showToast('Error looking up student: ' + error, 'danger');
+        updateDisplay('SYSTEM ERROR - DATABASE CONNECTION FAILED');
+    })
+    .finally(() => {
+        lookupBtn.disabled = false;
+        lookupBtn.innerHTML = '<i class="fas fa-search me-2"></i>Lookup';
     });
 }
 
-function startScanning() {
+function startVoiceCapture() {
     if (!currentStudent) {
-        alert('Please lookup a student first');
+        showToast('Please lookup a student first', 'warning');
         return;
     }
-    
-    const scanner = document.getElementById('scanner');
-    const icon = document.getElementById('scannerIcon');
-    const status = document.getElementById('scanStatus');
-    
-    scanner.classList.add('scanning');
-    icon.className = 'fas fa-spinner fa-spin fa-4x text-primary';
-    status.innerHTML = '<div class="text-primary">Scanning fingerprint...</div>';
-    
-    // Simulate fingerprint capture
-    setTimeout(() => {
-        scanner.classList.remove('scanning');
-        icon.className = 'fas fa-fingerprint fa-4x text-success';
-        status.innerHTML = '<div class="text-success"><i class="fas fa-check-circle me-2"></i>Fingerprint captured successfully</div>';
-        
-        // Generate mock fingerprint data
-        capturedFingerprint = btoa('mock_fingerprint_data_' + Date.now());
-        document.getElementById('enrollBtn').disabled = false;
-    }, 3000);
+
+    if (!systemReady) {
+        showToast('Microphone not available', 'danger');
+        return;
+    }
+
+    if (isRecording) {
+        showToast('Already recording', 'warning');
+        return;
+    }
+
+    const captureBtn = document.getElementById('captureBtn');
+    const voicePad = document.getElementById('voicePad');
+    const voiceIcon = document.getElementById('voiceIcon');
+    const recordingIndicator = document.getElementById('recordingIndicator');
+    const instructionText = document.getElementById('instructionText');
+
+    captureBtn.disabled = true;
+    captureBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Starting...';
+
+    updateDisplay('INITIATING VOICE CAPTURE...');
+
+    fetch('/api/initiate-scan', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({student_id: currentStudent.id})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'scanning_start' || data.status === 'student_found') {
+            // Start recording
+            isRecording = true;
+            voicePad.classList.remove('ready');
+            voicePad.classList.add('recording');
+            voiceIcon.style.color = '#dc3545';
+            recordingIndicator.style.display = 'block';
+            instructionText.textContent = '🎤 Recording... Speak now!';
+
+            updateDisplay('RECORDING VOICE SAMPLE - SPEAK CLEARLY');
+            showToast('Recording started - speak now!', 'info');
+
+            captureBtn.innerHTML = '<i class="fas fa-stop me-2"></i>Recording...';
+
+            // Call capture API
+            captureVoiceSample();
+        }
+    })
+    .catch(error => {
+        showToast('Failed to start capture: ' + error, 'danger');
+        captureBtn.disabled = false;
+        captureBtn.innerHTML = '<i class="fas fa-microphone me-2"></i>Start Recording';
+    });
 }
 
-function enrollFingerprint() {
-    if (!currentStudent || !capturedFingerprint) {
-        alert('Please capture a fingerprint first');
+function captureVoiceSample() {
+    fetch('/api/capture-fingerprint', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({student_id: currentStudent.id})
+    })
+    .then(response => response.json())
+    .then(data => {
+        isRecording = false;
+
+        const voicePad = document.getElementById('voicePad');
+        const voiceIcon = document.getElementById('voiceIcon');
+        const recordingIndicator = document.getElementById('recordingIndicator');
+        const instructionText = document.getElementById('instructionText');
+
+        voicePad.classList.remove('recording');
+        recordingIndicator.style.display = 'none';
+
+        if (data.status === 'scanning_complete') {
+            voicePad.classList.add('success');
+            voiceIcon.style.color = '#28a745';
+            instructionText.textContent = '✓ Voice sample captured successfully!';
+
+            // Display results
+            document.getElementById('qualityScore').textContent = data.data.quality_score.toFixed(1) + '%';
+            document.getElementById('pitchValue').textContent = Math.round(data.data.pitch_mean || 0);
+            document.getElementById('durationValue').textContent = '3.0s';
+            document.getElementById('captureResults').style.display = 'block';
+
+            currentVoiceData = data.data.scan_data;
+
+            updateDisplay('VOICE SAMPLE CAPTURED SUCCESSFULLY');
+            showToast(`Capture successful! Quality: ${data.data.quality_score.toFixed(1)}%`, 'success');
+
+            document.getElementById('enrollBtn').disabled = false;
+
+        } else if (data.status === 'quality_low') {
+            voicePad.classList.add('error');
+            voiceIcon.style.color = '#ffc107';
+            instructionText.textContent = '⚠️ Low quality - please retry';
+
+            updateDisplay('VOICE QUALITY INSUFFICIENT - PLEASE RETRY');
+            showToast('Quality too low. Speak louder and clearer.', 'warning');
+
+            setTimeout(() => {
+                voicePad.classList.remove('error');
+                voicePad.classList.add('ready');
+                voiceIcon.style.color = '#00ffff';
+                instructionText.textContent = 'Click microphone when ready to speak';
+                document.getElementById('captureBtn').disabled = false;
+                document.getElementById('captureBtn').innerHTML = '<i class="fas fa-microphone me-2"></i>Retry Recording';
+            }, 3000);
+        }
+    })
+    .catch(error => {
+        isRecording = false;
+
+        const voicePad = document.getElementById('voicePad');
+        voicePad.classList.remove('recording');
+        voicePad.classList.add('error');
+
+        document.getElementById('recordingIndicator').style.display = 'none';
+        updateDisplay('CAPTURE FAILED - MICROPHONE ERROR');
+        showToast('Voice capture failed: ' + error, 'danger');
+
+        setTimeout(() => {
+            voicePad.classList.remove('error');
+            voicePad.classList.add('ready');
+            document.getElementById('captureBtn').disabled = false;
+            document.getElementById('captureBtn').innerHTML = '<i class="fas fa-microphone me-2"></i>Retry Recording';
+        }, 3000);
+    })
+    .finally(() => {
+        document.getElementById('captureBtn').innerHTML = '<i class="fas fa-microphone me-2"></i>Start Recording';
+    });
+}
+
+function enrollVoiceprint() {
+    if (!currentStudent || !currentVoiceData) {
+        showToast('Please capture a voice sample first', 'warning');
         return;
     }
-    
+
+    const enrollBtn = document.getElementById('enrollBtn');
+    enrollBtn.disabled = true;
+    enrollBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Enrolling...';
+
+    updateDisplay('ENCRYPTING AND STORING VOICE BIOMETRIC DATA...');
+    showToast('Enrolling voiceprint...', 'info');
+
+    const qualityScore = parseFloat(document.getElementById('qualityScore').textContent) || 85.0;
+
     fetch('/api/enroll-fingerprint', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
             student_id: currentStudent.id,
-            fingerprint_data: capturedFingerprint
+            scan_data: currentVoiceData,
+            quality_score: qualityScore
         })
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success) {
-            alert(`Fingerprint enrolled successfully! Quality: ${data.quality_score.toFixed(1)}%`);
-            // Reset form
-            document.getElementById('studentForm').reset();
-            document.getElementById('studentInfo').style.display = 'none';
-            document.getElementById('scanStatus').innerHTML = '';
-            document.getElementById('scanner').classList.remove('scanning');
-            document.getElementById('scannerIcon').className = 'fas fa-fingerprint fa-4x text-muted';
-            document.getElementById('enrollBtn').disabled = true;
-            currentStudent = null;
-            capturedFingerprint = null;
+        if (data.status === 'enrollment_success') {
+            updateDisplay('ENROLLMENT COMPLETE - VOICE BIOMETRIC SECURED');
+            showToast(`Enrollment successful for ${data.data.student_name}!`, 'success');
+
+            document.getElementById('voiceprintStatus').innerHTML =
+                '<span class="badge bg-success"><i class="fas fa-check me-1"></i>Enrolled</span>';
+
+            setTimeout(() => {
+                resetSystem();
+            }, 3000);
+
         } else {
-            alert('Error: ' + data.error);
+            updateDisplay('ENROLLMENT FAILED - PLEASE RETRY');
+            showToast('Enrollment failed: ' + (data.data?.error || 'Unknown error'), 'danger');
+            enrollBtn.disabled = false;
+            enrollBtn.innerHTML = '<i class="fas fa-save me-2"></i>Retry Enrollment';
         }
     })
     .catch(error => {
-        alert('Error enrolling fingerprint: ' + error);
+        updateDisplay('SYSTEM ERROR - ENROLLMENT FAILED');
+        showToast('Enrollment error: ' + error, 'danger');
+        enrollBtn.disabled = false;
+        enrollBtn.innerHTML = '<i class="fas fa-save me-2"></i>Retry Enrollment';
     });
+}
+
+function resetSystem() {
+    document.getElementById('studentForm').reset();
+    document.getElementById('studentInfo').style.display = 'none';
+
+    const voicePad = document.getElementById('voicePad');
+    const voiceIcon = document.getElementById('voiceIcon');
+
+    voicePad.className = 'voice-pad';
+    voiceIcon.style.color = '#6c757d';
+
+    document.getElementById('recordingIndicator').style.display = 'none';
+    document.getElementById('instructionText').textContent = 'Click microphone when ready to speak';
+    document.getElementById('captureResults').style.display = 'none';
+
+    document.getElementById('captureBtn').disabled = true;
+    document.getElementById('captureBtn').innerHTML = '<i class="fas fa-microphone me-2"></i>Start Recording';
+    document.getElementById('enrollBtn').disabled = true;
+
+    currentStudent = null;
+    currentVoiceData = null;
+    isRecording = false;
+
+    updateDisplay('SYSTEM READY - AWAITING STUDENT DATA...');
+    showToast('System reset successfully', 'info');
 }
 </script>
 {% endblock %}

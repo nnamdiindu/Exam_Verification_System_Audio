@@ -41,17 +41,17 @@ class VoiceBiometricSystem:
             input_devices = [d for d in devices if d['max_input_channels'] > 0]
 
             if not input_devices:
-                print("âš ï¸  No microphone detected!")
+                print("⚠️  No microphone detected!")
                 self.is_connected = False
                 return
 
             # Use default input device
             default_input = sd.query_devices(kind='input')
-            print(f"âœ“ Microphone detected: {default_input['name']}")
+            print(f"✓ Microphone detected: {default_input['name']}")
             self.is_connected = True
 
         except Exception as e:
-            print(f"âŒ Microphone check failed: {e}")
+            print(f"❌ Microphone check failed: {e}")
             self.is_connected = False
 
     def initialize_scanner(self):
@@ -60,7 +60,7 @@ class VoiceBiometricSystem:
         self._check_microphone()
 
         if self.is_connected:
-            print(f"âœ“ Voice biometric system ready")
+            print(f"✓ Voice biometric system ready")
             print(f"  Sample rate: {self.sample_rate} Hz")
             print(f"  Recording duration: {self.duration} seconds")
 
@@ -72,7 +72,7 @@ class VoiceBiometricSystem:
         if prompt_message:
             print(f"\n{prompt_message}")
         else:
-            print("\nðŸŽ¤ Recording your voice...")
+            print("\n🎤 Recording your voice...")
 
         print(f"   Please speak clearly for {self.duration} seconds")
         print(f"   Say: 'My name is [Your Name] and my registration number is [Number]'")
@@ -83,7 +83,7 @@ class VoiceBiometricSystem:
             import time
             time.sleep(1)
 
-        print("   ðŸ”´ RECORDING NOW - Speak clearly!\n")
+        print("   🔴 RECORDING NOW - Speak clearly!\n")
 
         try:
             # Record audio
@@ -95,7 +95,7 @@ class VoiceBiometricSystem:
             )
             sd.wait()  # Wait for recording to finish
 
-            print("   âœ“ Recording complete!\n")
+            print("   ✓ Recording complete!\n")
 
             # Convert to numpy array
             audio_data = recording.flatten()
@@ -264,7 +264,7 @@ class VoiceBiometricSystem:
 
             # Record audio
             audio_data = self._record_audio(
-                "ðŸŽ¤ ENROLLMENT: Please speak clearly"
+                "🎤 ENROLLMENT: Please speak clearly"
             )
 
             # Extract features
@@ -275,7 +275,7 @@ class VoiceBiometricSystem:
             quality_score = self._calculate_quality_score(audio_data, features)
 
             if quality_score < 60:
-                print("âš ï¸  Warning: Low quality recording")
+                print("⚠️  Warning: Low quality recording")
                 print("   Try again in a quieter environment")
                 print("   Speak closer to the microphone")
 
@@ -298,7 +298,7 @@ class VoiceBiometricSystem:
                 ).hexdigest()
             }
 
-            print(f"\nâœ“ Voice sample captured successfully")
+            print(f"\n✓ Voice sample captured successfully")
             print(f"  Quality: {quality_score:.1f}/100")
             print(f"  Pitch: {features['pitch_mean']:.1f} Hz")
 
@@ -441,7 +441,7 @@ if __name__ == "__main__":
         voice_system = VoiceBiometricSystem(duration=3)
 
         if not voice_system.is_connected:
-            print("\nâŒ Microphone not available")
+            print("\n❌ Microphone not available")
             exit(1)
 
         # Test microphone
@@ -456,7 +456,7 @@ if __name__ == "__main__":
 
             enrollment_result = voice_system.capture_fingerprint()
 
-            print(f"\nâœ“ Enrollment complete")
+            print(f"\n✓ Enrollment complete")
             print(f"  Quality: {enrollment_result['quality_score']:.1f}/100")
 
             # Save enrollment template
@@ -480,18 +480,18 @@ if __name__ == "__main__":
             )
 
             print(f"Confidence: {confidence:.1f}%")
-            print(f"Match: {'âœ“ YES' if is_match else 'âœ— NO'}")
+            print(f"Match: {'✓ YES' if is_match else '✗ NO'}")
 
             if is_match:
-                print("\nðŸŽ‰ Voice verification successful!")
+                print("\n🎉 Voice verification successful!")
             else:
-                print("\nâš ï¸  Voice verification failed")
+                print("\n⚠️  Voice verification failed")
                 print("   (This is normal for a test - voice changes slightly each time)")
 
         voice_system.close()
 
     except Exception as e:
-        print(f"\nError: {e}")
+        print(f"\n❌ Error: {e}")
         import traceback
 
         traceback.print_exc()
