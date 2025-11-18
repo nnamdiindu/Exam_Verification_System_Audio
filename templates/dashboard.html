@@ -6,13 +6,13 @@
     <h1 class="mb-4">Dashboard</h1>
     
     <!-- Statistics Cards -->
-     {% if current_user.id < 3 %}
+     {% if current_user.id == 1 %}
     <div class="row mb-4">
         <div class="col-md-3">
             <div class="card bg-primary text-white">
                 <div class="card-body">
                     <h5>Total Students</h5>
-                    <h2>{{ stats.total_students }}</h2>
+                    <h2>{{ stats.total_students - 1 }}</h2>
                 </div>
             </div>
         </div>

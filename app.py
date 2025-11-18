@@ -13,14 +13,9 @@ from sqlalchemy import Integer, String, ForeignKey, DateTime, Boolean, Numeric, 
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from werkzeug.security import generate_password_hash
 from werkzeug.utils import redirect
-import hashlib
-import base64
-from sqlalchemy import and_, or_
-from voice_recognition import VoiceBiometricSystem as DigitalPersonaUSBScanner
 from forms import UserProfile
 from flask_bootstrap import Bootstrap5
 import hashlib
-import base64
 from sqlalchemy import and_, or_
 from voice_recognition import VoiceBiometricSystem as DigitalPersonaUSBScanner
 
@@ -90,7 +85,7 @@ db.init_app(app)
 migrate = Migrate(app, db)
 
 
-class Student(db.Model):
+class Student(UserMixin, db.Model):
     __tablename__ = "students"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -99,17 +94,32 @@ class Student(db.Model):
     last_name: Mapped[str] = mapped_column(String(100), nullable=False)
     email: Mapped[Optional[str]] = mapped_column(String(255))
     department: Mapped[Optional[str]] = mapped_column(String(100))
-
+    password: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[str] = mapped_column(String(20), default="operator")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    last_login: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
     # Relationships
     voiceprints: Mapped[List["VoiceprintTemplate"]] = relationship(
         back_populates="student",
-        lazy="selectin",  # Changed from "select" for better performance
+        lazy="selectin",
         cascade="all, delete-orphan"
     )
     registrations: Mapped[List["ExamRegistration"]] = relationship(
         back_populates="student",
-        lazy="select"
+        lazy="selectin",
+        cascade="all, delete-orphan"
+    )
+    verification_attempts: Mapped[List["VerificationAttempt"]] = relationship(
+        back_populates="student",
+        lazy="selectin",
+        cascade="all, delete-orphan"
+    )
+    attendance_records: Mapped[List["AttendanceRecord"]] = relationship(
+        back_populates="student",
+        lazy="selectin",
+        cascade="all, delete-orphan"
     )
 
     @property
@@ -118,17 +128,13 @@ class Student(db.Model):
 
     @property
     def has_voiceprint(self):
-        """Check if student has an active voiceprint enrolled"""
         return any(vp.is_active for vp in self.voiceprints)
 
     @property
     def active_voiceprint(self):
-        """Get the most recent active voiceprint"""
         active = [vp for vp in self.voiceprints if vp.is_active]
-        return active[-1] if active else None
 
-    def __repr__(self):
-        return f"<Student {self.registration_number}: {self.full_name}>"
+        return active[-1] if active else None
 
 
 class VoiceprintTemplate(db.Model):
@@ -136,30 +142,24 @@ class VoiceprintTemplate(db.Model):
     __tablename__ = "voiceprint_templates"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    student_id: Mapped[int] = mapped_column(Integer, ForeignKey("students.id"), nullable=False, index=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True)
 
-    # Voice template data (stored as JSON string)
-    template_data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    template_data: Mapped[bytes] = mapped_column(db.LargeBinary, nullable=False)
     template_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
 
-    # Audio metadata
     sample_rate: Mapped[int] = mapped_column(Integer, default=16000)
     duration_seconds: Mapped[int] = mapped_column(Integer, default=3)
     audio_format: Mapped[str] = mapped_column(String(20), default="MFCC")
 
-    # Quality metrics
     quality_score: Mapped[Decimal] = mapped_column(Numeric(5, 2), nullable=False)
     pitch_mean: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 2))
     confidence_level: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2))
 
-    # Status and timestamps
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
-    enrollment_date: Mapped[datetime] = mapped_column(DateTime, nullable=False,
-                                                      default=lambda: datetime.now(timezone.utc))
+    enrollment_date: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     last_verified: Mapped[Optional[datetime]] = mapped_column(DateTime)
     verification_count: Mapped[int] = mapped_column(Integer, default=0)
 
-    # Relationships
     student: Mapped["Student"] = relationship(back_populates="voiceprints")
     verification_attempts: Mapped[List["VerificationAttempt"]] = relationship(
         back_populates="matched_template",
@@ -181,32 +181,16 @@ class Exam(db.Model):
     end_time: Mapped[Optional[time]] = mapped_column(Time)
     venue: Mapped[Optional[str]] = mapped_column(String(255))
     duration_minutes: Mapped[int] = mapped_column(Integer, default=180)
-    status: Mapped[str] = mapped_column(String(20), default="scheduled",
-                                        index=True)  # scheduled, active, completed, cancelled
+    status: Mapped[str] = mapped_column(String(20), default="scheduled", index=True)
     max_capacity: Mapped[Optional[int]] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc),
                                                  onupdate=lambda: datetime.now(timezone.utc))
 
-    # Relationships
-    registrations: Mapped[List["ExamRegistration"]] = relationship(
-        back_populates="exam",
-        lazy="select",
-        cascade="all, delete-orphan"
-    )
-    verifications: Mapped[List["VerificationAttempt"]] = relationship(
-        back_populates="exam",
-        lazy="select",
-        cascade="all, delete-orphan"
-    )
-    sessions: Mapped[List["VerificationSession"]] = relationship(
-        back_populates="exam",
-        cascade="all, delete-orphan"
-    )
-    attendance_records: Mapped[List["AttendanceRecord"]] = relationship(
-        back_populates="exam",
-        cascade="all, delete-orphan"
-    )
+    registrations = relationship("ExamRegistration", back_populates="exam", cascade="all, delete-orphan")
+    verifications = relationship("VerificationAttempt", back_populates="exam", cascade="all, delete-orphan")
+    sessions = relationship("VerificationSession", back_populates="exam", cascade="all, delete-orphan")
+    attendance_records = relationship("AttendanceRecord", back_populates="exam", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Exam {self.exam_code}: {self.exam_title}>"
@@ -216,15 +200,15 @@ class ExamRegistration(db.Model):
     __tablename__ = "exam_registrations"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    student_id: Mapped[int] = mapped_column(ForeignKey("students.id"), nullable=False, index=True)
-    exam_id: Mapped[int] = mapped_column(ForeignKey("exams.id"), nullable=False, index=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True)
+    exam_id: Mapped[int] = mapped_column(ForeignKey("exams.id", ondelete="CASCADE"), nullable=False, index=True)
+
     registration_date: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     seat_number: Mapped[Optional[str]] = mapped_column(String(20))
-    status: Mapped[str] = mapped_column(String(20), default="registered")  # registered, verified, absent
+    status: Mapped[str] = mapped_column(String(20), default="registered")
 
-    # Relationships
-    student: Mapped["Student"] = relationship(back_populates="registrations")
-    exam: Mapped["Exam"] = relationship(back_populates="registrations")
+    student = relationship("Student", back_populates="registrations")
+    exam = relationship("Exam", back_populates="registrations")
 
     def __repr__(self):
         return f"<ExamRegistration Student:{self.student_id} Exam:{self.exam_id}>"
@@ -235,27 +219,23 @@ class VerificationAttempt(db.Model):
     __tablename__ = "verification_attempts"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    exam_id: Mapped[int] = mapped_column(ForeignKey("exams.id"), nullable=False, index=True)
-    student_id: Mapped[Optional[int]] = mapped_column(ForeignKey("students.id"), nullable=True, index=True)
-    template_matched: Mapped[Optional[int]] = mapped_column(ForeignKey("voiceprint_templates.id"), index=True)
+    exam_id: Mapped[int] = mapped_column(ForeignKey("exams.id", ondelete="CASCADE"), nullable=False, index=True)
+    student_id: Mapped[Optional[int]] = mapped_column(ForeignKey("students.id", ondelete="SET NULL"), nullable=True,
+                                                      index=True)
+    template_matched: Mapped[Optional[int]] = mapped_column(ForeignKey("voiceprint_templates.id", ondelete="SET NULL"),
+                                                            index=True)
 
-    # Verification details
     verification_timestamp: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc),
                                                              index=True)
-    verification_status: Mapped[str] = mapped_column(String(20),
-                                                     nullable=False)  # success, failed, duplicate, not_registered
+    verification_status: Mapped[str] = mapped_column(String(20), nullable=False)
     confidence_score: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2))
 
-    # Additional info
     attempt_number: Mapped[int] = mapped_column(Integer, default=1)
     error_message: Mapped[Optional[str]] = mapped_column(Text)
 
-    # Relationships
-    exam: Mapped["Exam"] = relationship(back_populates="verifications")
-    student: Mapped[Optional["Student"]] = relationship()
-    matched_template: Mapped[Optional["VoiceprintTemplate"]] = relationship(
-        back_populates="verification_attempts"
-    )
+    exam = relationship("Exam", back_populates="verifications")
+    student = relationship("Student", back_populates="verification_attempts")
+    matched_template = relationship("VoiceprintTemplate", back_populates="verification_attempts")
 
     def __repr__(self):
         return f"<VerificationAttempt {self.id} - {self.verification_status} - {self.confidence_score}%>"
@@ -266,23 +246,21 @@ class AttendanceRecord(db.Model):
     __tablename__ = "attendance_records"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    exam_id: Mapped[int] = mapped_column(ForeignKey("exams.id"), nullable=False, index=True)
-    student_id: Mapped[int] = mapped_column(ForeignKey("students.id"), nullable=False, index=True)
-    verification_attempt_id: Mapped[int] = mapped_column(ForeignKey("verification_attempts.id"), nullable=False,
-                                                         unique=True)
+    exam_id: Mapped[int] = mapped_column(ForeignKey("exams.id", ondelete="CASCADE"), nullable=False, index=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True)
+    verification_attempt_id: Mapped[int] = mapped_column(ForeignKey("verification_attempts.id", ondelete="CASCADE"),
+                                                         nullable=False, unique=True)
 
     check_in_time: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     seat_number: Mapped[Optional[str]] = mapped_column(String(20))
-    status: Mapped[str] = mapped_column(String(20), default="present")  # present, late, left_early
+    status: Mapped[str] = mapped_column(String(20), default="present")
 
-    # Additional tracking
     check_out_time: Mapped[Optional[datetime]] = mapped_column(DateTime)
     notes: Mapped[Optional[str]] = mapped_column(Text)
 
-    # Relationships
-    exam: Mapped["Exam"] = relationship(back_populates="attendance_records")
-    student: Mapped["Student"] = relationship()
-    verification_attempt: Mapped["VerificationAttempt"] = relationship()
+    exam = relationship("Exam", back_populates="attendance_records")
+    student = relationship("Student", back_populates="attendance_records")
+    verification_attempt = relationship("VerificationAttempt")
 
     def __repr__(self):
         return f"<Attendance Exam:{self.exam_id} Student:{self.student_id} - {self.status}>"
@@ -293,26 +271,22 @@ class VerificationSession(db.Model):
     __tablename__ = "verification_sessions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    exam_id: Mapped[int] = mapped_column(ForeignKey("exams.id"), nullable=False, index=True)
-    operator_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
+    exam_id: Mapped[int] = mapped_column(ForeignKey("exams.id", ondelete="CASCADE"), nullable=False, index=True)
+    operator_id: Mapped[int] = mapped_column(ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
 
-    # Session timing
     session_start: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     session_end: Mapped[Optional[datetime]] = mapped_column(DateTime)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
 
-    # Statistics
     total_attempts: Mapped[int] = mapped_column(Integer, default=0)
     successful_verifications: Mapped[int] = mapped_column(Integer, default=0)
     failed_attempts: Mapped[int] = mapped_column(Integer, default=0)
     duplicate_attempts: Mapped[int] = mapped_column(Integer, default=0)
 
-    # Session notes
     notes: Mapped[Optional[str]] = mapped_column(Text)
 
-    # Relationships
-    exam: Mapped["Exam"] = relationship(back_populates="sessions")
-    operator: Mapped["User"] = relationship()
+    exam = relationship("Exam", back_populates="sessions")
+    operator = relationship("Student")
 
     @property
     def success_rate(self):
@@ -324,25 +298,25 @@ class VerificationSession(db.Model):
         return f"<VerificationSession {self.id} - Exam:{self.exam_id} - Active:{self.is_active}>"
 
 
-class User(UserMixin, db.Model):
-    __tablename__ = "user"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    full_name: Mapped[str] = mapped_column(String(200), nullable=False)
-    email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False, index=True)
-    password: Mapped[str] = mapped_column(String(255), nullable=False)
-    role: Mapped[str] = mapped_column(String(20), default="operator")  # admin, operator
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
-    last_login: Mapped[Optional[datetime]] = mapped_column(DateTime)
-
-    def __repr__(self):
-        return f"<User {self.email} - {self.role}>"
+# class User(UserMixin, db.Model):
+#     __tablename__ = "user"
+#
+#     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+#     full_name: Mapped[str] = mapped_column(String(200), nullable=False)
+#     email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False, index=True)
+#     password: Mapped[str] = mapped_column(String(255), nullable=False)
+#     role: Mapped[str] = mapped_column(String(20), default="operator")
+#     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+#     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+#     last_login: Mapped[Optional[datetime]] = mapped_column(DateTime)
+#
+#     def __repr__(self):
+#         return f"<User {self.email} - {self.role}>"
 
 
 @login_manager.user_loader
-def load_user(user_id):
-    return db.get_or_404(User, user_id)
+def load_user(student_id):
+    return db.get_or_404(Student, student_id)
 
 
 with app.app_context():
@@ -391,7 +365,7 @@ def index():
 def register():
     form = UserProfile()
     if form.validate_on_submit():
-        user = db.session.execute(db.select(User).where(User.email == request.form.get("email"))).scalar()
+        user = db.session.execute(db.select(Student).where(Student.email == request.form.get("email"))).scalar()
 
         if user:
             flash("Email has already been registered, please login", "error")
@@ -407,16 +381,19 @@ def register():
                 method="pbkdf2:sha256"
             )
 
-            new_profile = User(
-                full_name=request.form.get("full_name"),
+            new_student = Student(
+                first_name=request.form.get("first_name"),
+                last_name=request.form.get("last_name"),
+                registration_number=request.form.get("registration_number"),
+                department=request.form.get("department"),
                 email=request.form.get("email"),
                 password=hashed_and_salted_password,
             )
 
-            db.session.add(new_profile)
+            db.session.add(new_student)
             db.session.commit()
 
-            login_user(new_profile)
+            login_user(new_student)
 
             return redirect(url_for("dashboard"))
 
@@ -435,9 +412,8 @@ def login():
         username = data["username"]
         # password = data["password"]
 
-        result = db.session.execute(db.select(User).where(User.email == username.lower()))
+        result = db.session.execute(db.select(Student).where(Student.email == username.lower()))
         user = result.scalars().first()
-        print(user)
         if user:
             login_user(user)
             return jsonify({

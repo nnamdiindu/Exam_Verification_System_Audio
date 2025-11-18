@@ -64,7 +64,7 @@
                 UNN Exam System
             </h4>
             <ul class="nav flex-column">
-                {% if current_user.id < 3 %}
+                {% if current_user.id == 1 %}
                 <li class="nav-item">
                     <a class="nav-link {% if request.endpoint == 'index' %}active{% endif %}" href="{{ url_for('dashboard') }}">
                         <i class="fas fa-tachometer-alt me-2"></i> Dashboard
